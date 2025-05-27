@@ -1,3 +1,5 @@
+use winapi;
+
 /*
 Resources
 https://github.com/coreboot/chrome-ec/blob/1b359bdd91da15ea25aaffd0d940ff63b9d72bc5/include/keyboard_8042_sharedlib.h#L116
@@ -131,29 +133,34 @@ const CROSKBHID_KBLT_UP: u8 = 0x04;
 const CROSKBHID_KBLT_DN: u8 = 0x08;
 const CROSKBHID_KBLT_TOGGLE: u8 = 0x10;
 
-
 const cfg_magic: &str = "CrKB";
-
 
 //structs
 struct RemapCfgKey {
     MakeCode: u16,
-    Flags: u16
+    Flags: u16,
+}
+impl RemapCfgKey
+{
+    fn new() -> Self
+    {
+        RemapCfgKey { MakeCode: 0, Flags: 0 }
+    }
 }
 
 enum RemapCfgOverride {
-  RemapCfgOverrideAutoDetect,
-  RemapCfgOverrideEnable,
-  RemapCfgOverrideDisable
+    RemapCfgOverrideAutoDetect,
+    RemapCfgOverrideEnable,
+    RemapCfgOverrideDisable,
 }
 
 enum RemapCfgKeyState {
-  RemapCfgKeyStateNoDetect,
-  RemapCfgKeyStateEnforce,
-  RemapCfgKeyStateEnforceNot
+    RemapCfgKeyStateNoDetect,
+    RemapCfgKeyStateEnforce,
+    RemapCfgKeyStateEnforceNot,
 }
 
-  struct RemapCfg {
+struct RemapCfg {
     LeftCtrl: RemapCfgKeyState,
     LeftAlt: RemapCfgKeyState,
     Search: RemapCfgKeyState,
@@ -165,21 +172,81 @@ enum RemapCfgKeyState {
     originalKey: RemapCfgKey,
     remapVivaldiToFnKeys: bool,
     remappedKey: RemapCfgKey,
-    additionalKeys: [RemapCfgKey;8]
+    additionalKeys: [RemapCfgKey; 8],
 }
 
-  struct RemapCfgs {
+struct RemapCfgs {
     magic: u32,
     remappings: u32,
     FlipSearchAndAssistantOnPixelbook: bool,
     HasAssistantKey: RemapCfgOverride,
     IsNonChromeEC: RemapCfgOverride,
-    cfg: [RemapCfg;1]
+    cfg: [RemapCfg; 1],
 }
-  struct KeyStruct {
+#[derive(Copy, Clone)]
+struct KeyStruct {
     MakeCode: u16,
     Flags: u16,
-    InternalFlags: u16
+    InternalFlags: u16,
+}
+
+const max_current_keys: i32 = 20;
+
+struct vivaldi_tester {
+    legacy_top_row_keys: [u8; 10],
+    legacy_vivaldi: [u8; 10],
+
+    function_row_count: u8,
+    function_row_keys: [KeyStruct; 16],
+
+    remap_config: *mut RemapCfgKey,
+
+    left_ctrl_pressed: bool,
+    left_alt_pressed: bool,
+    left_shift_pressed: bool,
+    assistant_pressed: bool,
+    search_pressed: bool,
+
+    right_ctrl_pressed: bool,
+    right_alt_pressed: bool,
+    right_shift_pressed: bool,
+
+    current_keys: [KeyStruct; max_current_keys as usize],
+
+    num_key_pressed: i32,
+    num_remaps: i32,
+}
+impl KeyStruct
+{
+    fn new() -> Self
+    {
+        KeyStruct { MakeCode: 0, Flags: 0, InternalFlags: 0 }
+    }
+}
+impl vivaldi_tester {
+    fn new() -> Self {
+        let key = KeyStruct::new();
+        let mut remap_cfg = RemapCfgKey::new();
+        let mut remap_config = &mut remap_cfg as *mut RemapCfgKey;
+        vivaldi_tester {
+            legacy_top_row_keys: [0;10],
+            legacy_vivaldi: [0;10],
+            function_row_count: 13,
+            function_row_keys: [key;16],
+            remap_config,
+            left_ctrl_pressed: false,   
+            left_alt_pressed: false,
+            left_shift_pressed: false,
+            assistant_pressed: false,
+            search_pressed: false,
+            right_ctrl_pressed: false,
+            right_alt_pressed: false,
+            right_shift_pressed: false,
+            current_keys: [key; max_current_keys as usize],
+            num_key_pressed: 0,
+            num_remaps: 0,
+        }
+    }
 }
 
 fn main() {
