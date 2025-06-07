@@ -1,6 +1,12 @@
-use crate::RemapCfgKeyState::{RemapCfgKeyStateNoDetect, RemapCfgKeyStateEnforceNot, RemapCfgKeyStateEnforce };
+use crate::RemapCfgKeyState::{
+    RemapCfgKeyStateEnforce, RemapCfgKeyStateEnforceNot, RemapCfgKeyStateNoDetect,
+};
 use crate::RemapCfgOverride::RemapCfgOverrideAutoDetect;
-use winapi;
+
+//crates
+use bincode::{self, Decode, Encode, config, encode_into_std_write};
+use std::fs::File;
+use mem_cmp::MemEq;
 
 /*
 Resources
@@ -67,9 +73,9 @@ https://github.com/coreboot/chrome-ec/blob/1b359bdd91da15ea25aaffd0d940ff63b9d72
 
  */
 
-const location: &str = "C:/Windows/System32/drivers";
+const LOCATION: &str = "C:/Windows/System32/drivers";
 
-const function_keys: [u16; 16] = [
+const FUNCTION_KEYS: [u16; 16] = [
     0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x40, 0x41, 0x42, 0x43, 0x44, 0x57, 0x58, //F13 - F16
     0x64, 0x64, 0x66, 0x67,
 ];
@@ -135,423 +141,446 @@ const CROSKBHID_KBLT_UP: u8 = 0x04;
 const CROSKBHID_KBLT_DN: u8 = 0x08;
 const CROSKBHID_KBLT_TOGGLE: u8 = 0x10;
 
-const KEY_BREAK:u16 = 1;
-const KEY_E0:u16 = 2;
+const KEY_BREAK: u16 = 1;
+const KEY_E0: u16 = 2;
 const KEY_E1: u16 = 4;
 
 const CFG_MAGIC: u32 = u32::from_le_bytes(*b"CrKB");
 
+const MAX_CURRENT_KEYS: i32 = 20;
+
+
 //structs
-#[derive(Clone, Copy)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Encode, Decode)]
 struct RemapCfgKey {
-    MakeCode: u16,
-    Flags: u16,
+    make_code: u16,
+    flags: u16,
 }
 impl RemapCfgKey {
     fn new() -> Self {
         RemapCfgKey {
-            MakeCode: 0,
-            Flags: 0,
+            make_code: 0,
+            flags: 0,
         }
     }
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Encode, Decode, Clone, Copy)]
+struct RemappedKeyStruct
+{
+    original_key: KeyStruct,
+    remapped_key: KeyStruct
+}
+impl  RemappedKeyStruct {
+    fn new() -> Self
+    {
+        RemappedKeyStruct { original_key: KeyStruct::new(), remapped_key: KeyStruct::new() }
+    }
+    
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Encode, Decode, Clone, Copy)]
 enum RemapCfgOverride {
     RemapCfgOverrideAutoDetect,
     RemapCfgOverrideEnable,
     RemapCfgOverrideDisable,
 }
-
+#[derive(serde::Serialize, serde::Deserialize, Encode, Decode, Clone, Copy)]
 enum RemapCfgKeyState {
     RemapCfgKeyStateNoDetect,
     RemapCfgKeyStateEnforce,
     RemapCfgKeyStateEnforceNot,
 }
-
-struct remap_config_keys {
-    LeftCtrl: RemapCfgKeyState,
-    LeftAlt: RemapCfgKeyState,
-    Search: RemapCfgKeyState,
-    Assistant: RemapCfgKeyState,
-    LeftShift: RemapCfgKeyState,
-    RightCtrl: RemapCfgKeyState,
-    RightAlt: RemapCfgKeyState,
-    RightShift: RemapCfgKeyState,
-    originalKey: RemapCfgKey,
-    remapVivaldiToFnKeys: bool,
-    remappedKey: RemapCfgKey,
-    additionalKeys: [RemapCfgKey; 8],
+#[derive(serde::Serialize, serde::Deserialize, Encode, Decode, Clone, Copy)]
+struct RemapConfigKeys {
+    left_ctrl: RemapCfgKeyState,
+    left_alt: RemapCfgKeyState,
+    search: RemapCfgKeyState,
+    assistant: RemapCfgKeyState,
+    left_shift: RemapCfgKeyState,
+    right_ctrl: RemapCfgKeyState,
+    right_alt: RemapCfgKeyState,
+    right_shift: RemapCfgKeyState,
+    original_key: RemapCfgKey,
+    remap_vivaldi_to_fn_keys: bool,
+    remapped_key: RemapCfgKey,
+    additional_keys: [RemapCfgKey; 8],
 }
-impl remap_config_keys {
+impl RemapConfigKeys {
     fn new() -> Self {
         let cfgkey = RemapCfgKey::new();
-        remap_config_keys {
-            LeftCtrl: RemapCfgKeyStateNoDetect,
-            LeftAlt: RemapCfgKeyStateNoDetect,
-            Search: RemapCfgKeyStateNoDetect,
-            Assistant: RemapCfgKeyStateNoDetect,
-            LeftShift: RemapCfgKeyStateNoDetect,
-            RightCtrl: RemapCfgKeyStateNoDetect,
-            RightAlt: RemapCfgKeyStateNoDetect,
-            RightShift: RemapCfgKeyStateNoDetect,
-            originalKey: cfgkey,
-            remapVivaldiToFnKeys: false,
-            remappedKey: cfgkey,
-            additionalKeys: [cfgkey; 8],
+        RemapConfigKeys {
+            left_ctrl: RemapCfgKeyStateNoDetect,
+            left_alt: RemapCfgKeyStateNoDetect,
+            search: RemapCfgKeyStateNoDetect,
+            assistant: RemapCfgKeyStateNoDetect,
+            left_shift: RemapCfgKeyStateNoDetect,
+            right_ctrl: RemapCfgKeyStateNoDetect,
+            right_alt: RemapCfgKeyStateNoDetect,
+            right_shift: RemapCfgKeyStateNoDetect,
+            original_key: cfgkey,
+            remap_vivaldi_to_fn_keys: false,
+            remapped_key: cfgkey,
+            additional_keys: [cfgkey; 8],
         }
     }
 }
-
-struct remap_configs {
+#[derive(serde::Serialize, serde::Deserialize, Encode, Decode, Clone)]
+struct RemapConfigs {
     magic: u32,
     remappings: u32,
-    FlipSearchAndAssistantOnPixelbook: bool,
-    HasAssistantKey: RemapCfgOverride,
-    IsNonChromeEC: RemapCfgOverride,
-    cfg: [remap_config_keys; 1],
+    flip_search_and_assistant_on_pixelbook: bool,
+    has_assistant_key: RemapCfgOverride,
+    is_non_chrome_ec: RemapCfgOverride,
+    cfg: Vec<RemapConfigKeys>,
 }
-impl remap_configs {
+impl RemapConfigs {
     fn new() -> Self {
-        let cfg = [remap_config_keys::new(); 1];
-        remap_configs {
+        let config = RemapConfigKeys::new();
+        RemapConfigs {
             magic: 0,
             remappings: 0,
-            FlipSearchAndAssistantOnPixelbook: false,
-            HasAssistantKey: RemapCfgOverrideAutoDetect,
-            IsNonChromeEC: RemapCfgOverrideAutoDetect,
-            cfg,
+            flip_search_and_assistant_on_pixelbook: false,
+            has_assistant_key: RemapCfgOverrideAutoDetect,
+            is_non_chrome_ec: RemapCfgOverrideAutoDetect,
+            cfg: [config; 1].to_vec(),
         }
     }
-    fn default(&mut self)
-    {
+    fn default(&mut self) {
         let remap_configuration = self;
 
-    //start remap config
-    remap_configuration.magic = CFG_MAGIC;
-    remap_configuration.FlipSearchAndAssistantOnPixelbook = true;
-    remap_configuration.HasAssistantKey = RemapCfgOverrideAutoDetect;
-    remap_configuration.IsNonChromeEC = RemapCfgOverrideAutoDetect;
-    remap_configuration.remappings = 40;
+        //start remap config
+        remap_configuration.magic = CFG_MAGIC;
+        remap_configuration.flip_search_and_assistant_on_pixelbook = true;
+        remap_configuration.has_assistant_key = RemapCfgOverrideAutoDetect;
+        remap_configuration.is_non_chrome_ec = RemapCfgOverrideAutoDetect;
+        remap_configuration.remappings = 40;
 
-    //start map vivalid keys (without Ctrl) to F# keys
-    remap_configuration.cfg[0].LeftCtrl = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[0].originalKey.MakeCode = VIVALDI_BACK as u16;
-    remap_configuration.cfg[0].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[0].remapVivaldiToFnKeys = true;
+        //start map vivalid keys (without Ctrl) to F# keys
+        remap_configuration.cfg[0].left_ctrl = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[0].original_key.make_code = VIVALDI_BACK as u16;
+        remap_configuration.cfg[0].original_key.flags = KEY_E0;
+        remap_configuration.cfg[0].remap_vivaldi_to_fn_keys = true;
 
-    remap_configuration.cfg[1].LeftCtrl = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[1].originalKey.MakeCode = VIVALDI_FWD as u16;
-    remap_configuration.cfg[1].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[1].remapVivaldiToFnKeys = true;
+        remap_configuration.cfg[1].left_ctrl = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[1].original_key.make_code = VIVALDI_FWD as u16;
+        remap_configuration.cfg[1].original_key.flags = KEY_E0;
+        remap_configuration.cfg[1].remap_vivaldi_to_fn_keys = true;
 
-    remap_configuration.cfg[2].LeftCtrl = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[2].originalKey.MakeCode = VIVALDI_REFRESH as u16;
-    remap_configuration.cfg[2].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[2].remapVivaldiToFnKeys = true;
+        remap_configuration.cfg[2].left_ctrl = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[2].original_key.make_code = VIVALDI_REFRESH as u16;
+        remap_configuration.cfg[2].original_key.flags = KEY_E0;
+        remap_configuration.cfg[2].remap_vivaldi_to_fn_keys = true;
 
-    remap_configuration.cfg[3].LeftCtrl = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[3].originalKey.MakeCode = VIVALDI_FULLSCREEN as u16;
-    remap_configuration.cfg[3].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[3].remapVivaldiToFnKeys = true;
+        remap_configuration.cfg[3].left_ctrl = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[3].original_key.make_code = VIVALDI_FULLSCREEN as u16;
+        remap_configuration.cfg[3].original_key.flags = KEY_E0;
+        remap_configuration.cfg[3].remap_vivaldi_to_fn_keys = true;
 
-    remap_configuration.cfg[4].LeftCtrl = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[4].originalKey.MakeCode = VIVALDI_OVERVIEW as u16;
-    remap_configuration.cfg[4].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[4].remapVivaldiToFnKeys = true;
+        remap_configuration.cfg[4].left_ctrl = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[4].original_key.make_code = VIVALDI_OVERVIEW as u16;
+        remap_configuration.cfg[4].original_key.flags = KEY_E0;
+        remap_configuration.cfg[4].remap_vivaldi_to_fn_keys = true;
 
-    remap_configuration.cfg[5].LeftCtrl = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[5].originalKey.MakeCode = VIVALDI_SNAPSHOT as u16;
-    remap_configuration.cfg[5].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[5].remapVivaldiToFnKeys = true;
+        remap_configuration.cfg[5].left_ctrl = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[5].original_key.make_code = VIVALDI_SNAPSHOT as u16;
+        remap_configuration.cfg[5].original_key.flags = KEY_E0;
+        remap_configuration.cfg[5].remap_vivaldi_to_fn_keys = true;
 
-    remap_configuration.cfg[6].LeftCtrl = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[6].originalKey.MakeCode = VIVALDI_BRIGHTNESS_DN as u16;
-    remap_configuration.cfg[6].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[6].remapVivaldiToFnKeys = true;
+        remap_configuration.cfg[6].left_ctrl = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[6].original_key.make_code = VIVALDI_BRIGHTNESS_DN as u16;
+        remap_configuration.cfg[6].original_key.flags = KEY_E0;
+        remap_configuration.cfg[6].remap_vivaldi_to_fn_keys = true;
 
-    remap_configuration.cfg[7].LeftCtrl = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[7].originalKey.MakeCode = VIVALDI_BRIGHTNESS_UP as u16;
-    remap_configuration.cfg[7].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[7].remapVivaldiToFnKeys = true;
+        remap_configuration.cfg[7].left_ctrl = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[7].original_key.make_code = VIVALDI_BRIGHTNESS_UP as u16;
+        remap_configuration.cfg[7].original_key.flags = KEY_E0;
+        remap_configuration.cfg[7].remap_vivaldi_to_fn_keys = true;
 
-    remap_configuration.cfg[8].LeftCtrl = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[8].originalKey.MakeCode = VIVALDI_PRIVACY_TOGGLE as u16;
-    remap_configuration.cfg[8].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[8].remapVivaldiToFnKeys = true;
+        remap_configuration.cfg[8].left_ctrl = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[8].original_key.make_code = VIVALDI_PRIVACY_TOGGLE as u16;
+        remap_configuration.cfg[8].original_key.flags = KEY_E0;
+        remap_configuration.cfg[8].remap_vivaldi_to_fn_keys = true;
 
-    remap_configuration.cfg[9].LeftCtrl = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[9].originalKey.MakeCode = VIVALDI_KBD_BKLIGHT_DOWN as u16;
-    remap_configuration.cfg[9].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[9].remapVivaldiToFnKeys = true;
+        remap_configuration.cfg[9].left_ctrl = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[9].original_key.make_code = VIVALDI_KBD_BKLIGHT_DOWN as u16;
+        remap_configuration.cfg[9].original_key.flags = KEY_E0;
+        remap_configuration.cfg[9].remap_vivaldi_to_fn_keys = true;
 
-    remap_configuration.cfg[10].LeftCtrl = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[10].originalKey.MakeCode = VIVALDI_KBD_BKLIGHT_UP as u16;
-    remap_configuration.cfg[10].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[10].remapVivaldiToFnKeys = true;
+        remap_configuration.cfg[10].left_ctrl = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[10].original_key.make_code = VIVALDI_KBD_BKLIGHT_UP as u16;
+        remap_configuration.cfg[10].original_key.flags = KEY_E0;
+        remap_configuration.cfg[10].remap_vivaldi_to_fn_keys = true;
 
-    remap_configuration.cfg[11].LeftCtrl = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[11].originalKey.MakeCode = VIVALDI_KBD_BKLIGHT_TOGGLE as u16;
-    remap_configuration.cfg[11].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[11].remapVivaldiToFnKeys = true;
+        remap_configuration.cfg[11].left_ctrl = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[11].original_key.make_code = VIVALDI_KBD_BKLIGHT_TOGGLE as u16;
+        remap_configuration.cfg[11].original_key.flags = KEY_E0;
+        remap_configuration.cfg[11].remap_vivaldi_to_fn_keys = true;
 
-    remap_configuration.cfg[12].LeftCtrl = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[12].originalKey.MakeCode = VIVALDI_PLAY_PAUSE as u16;
-    remap_configuration.cfg[12].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[12].remapVivaldiToFnKeys = true;
+        remap_configuration.cfg[12].left_ctrl = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[12].original_key.make_code = VIVALDI_PLAY_PAUSE as u16;
+        remap_configuration.cfg[12].original_key.flags = KEY_E0;
+        remap_configuration.cfg[12].remap_vivaldi_to_fn_keys = true;
 
-    remap_configuration.cfg[13].LeftCtrl = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[13].originalKey.MakeCode = VIVALDI_MUTE as u16;
-    remap_configuration.cfg[13].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[13].remapVivaldiToFnKeys = true;
+        remap_configuration.cfg[13].left_ctrl = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[13].original_key.make_code = VIVALDI_MUTE as u16;
+        remap_configuration.cfg[13].original_key.flags = KEY_E0;
+        remap_configuration.cfg[13].remap_vivaldi_to_fn_keys = true;
 
-    remap_configuration.cfg[14].LeftCtrl = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[14].originalKey.MakeCode = VIVALDI_VOL_DN as u16;
-    remap_configuration.cfg[14].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[14].remapVivaldiToFnKeys = true;
+        remap_configuration.cfg[14].left_ctrl = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[14].original_key.make_code = VIVALDI_VOL_DN as u16;
+        remap_configuration.cfg[14].original_key.flags = KEY_E0;
+        remap_configuration.cfg[14].remap_vivaldi_to_fn_keys = true;
 
-    remap_configuration.cfg[15].LeftCtrl = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[15].originalKey.MakeCode = VIVALDI_VOL_UP as u16;
-    remap_configuration.cfg[15].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[15].remapVivaldiToFnKeys = true;
+        remap_configuration.cfg[15].left_ctrl = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[15].original_key.make_code = VIVALDI_VOL_UP as u16;
+        remap_configuration.cfg[15].original_key.flags = KEY_E0;
+        remap_configuration.cfg[15].remap_vivaldi_to_fn_keys = true;
 
-    remap_configuration.cfg[16].LeftCtrl = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[16].originalKey.MakeCode = VIVALDI_NEXT_TRACK as u16;
-    remap_configuration.cfg[16].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[16].remapVivaldiToFnKeys = true;
+        remap_configuration.cfg[16].left_ctrl = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[16].original_key.make_code = VIVALDI_NEXT_TRACK as u16;
+        remap_configuration.cfg[16].original_key.flags = KEY_E0;
+        remap_configuration.cfg[16].remap_vivaldi_to_fn_keys = true;
 
-    remap_configuration.cfg[17].LeftCtrl = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[17].originalKey.MakeCode = VIVALDI_PREV_TRACK as u16;
-    remap_configuration.cfg[17].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[17].remapVivaldiToFnKeys = true;
+        remap_configuration.cfg[17].left_ctrl = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[17].original_key.make_code = VIVALDI_PREV_TRACK as u16;
+        remap_configuration.cfg[17].original_key.flags = KEY_E0;
+        remap_configuration.cfg[17].remap_vivaldi_to_fn_keys = true;
 
-    remap_configuration.cfg[18].LeftCtrl = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[18].originalKey.MakeCode = VIVALDI_MIC_MUTE as u16;
-    remap_configuration.cfg[18].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[18].remapVivaldiToFnKeys = true;
+        remap_configuration.cfg[18].left_ctrl = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[18].original_key.make_code = VIVALDI_MIC_MUTE as u16;
+        remap_configuration.cfg[18].original_key.flags = KEY_E0;
+        remap_configuration.cfg[18].remap_vivaldi_to_fn_keys = true;
 
-    // ctrl + alt + backspace -> ctrl + alt + delete
-    remap_configuration.cfg[19].LeftCtrl = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[19].LeftAlt = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[19].originalKey.MakeCode = K_BACKSP as u16;
-    remap_configuration.cfg[19].originalKey.Flags = 0;
-    remap_configuration.cfg[19].remappedKey.MakeCode = K_DELETE as u16;
-    remap_configuration.cfg[19].remappedKey.Flags = KEY_E0;
+        // ctrl + alt + backspace -> ctrl + alt + delete
+        remap_configuration.cfg[19].left_ctrl = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[19].left_alt = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[19].original_key.make_code = K_BACKSP as u16;
+        remap_configuration.cfg[19].original_key.flags = 0;
+        remap_configuration.cfg[19].remapped_key.make_code = K_DELETE as u16;
+        remap_configuration.cfg[19].remapped_key.flags = KEY_E0;
 
+        //map ctrl + backspace -> delete
+        remap_configuration.cfg[20].left_ctrl = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[20].left_alt = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[20].original_key.make_code = K_BACKSP as u16;
+        remap_configuration.cfg[20].original_key.flags = 0;
+        remap_configuration.cfg[20].remapped_key.make_code = K_DELETE as u16;
+        remap_configuration.cfg[20].remapped_key.flags = KEY_E0;
+        remap_configuration.cfg[20].additional_keys[0].make_code = K_LCTRL as u16;
+        remap_configuration.cfg[20].additional_keys[0].flags = KEY_BREAK;
 
-    //map ctrl + backspace -> delete
-    remap_configuration.cfg[20].LeftCtrl = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[20].LeftAlt = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[20].originalKey.MakeCode = K_BACKSP as u16;
-    remap_configuration.cfg[20].originalKey.Flags = 0;
-    remap_configuration.cfg[20].remappedKey.MakeCode = K_DELETE as u16;
-    remap_configuration.cfg[20].remappedKey.Flags = KEY_E0;
-    remap_configuration.cfg[20].additionalKeys[0].MakeCode = K_LCTRL as u16;
-    remap_configuration.cfg[20].additionalKeys[0].Flags = KEY_BREAK;
+        //map ctrl + fullscreen -> f11
+        remap_configuration.cfg[21].left_ctrl = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[21].left_shift = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[21].original_key.make_code = VIVALDI_FULLSCREEN as u16;
+        remap_configuration.cfg[21].original_key.flags = KEY_E0;
+        remap_configuration.cfg[21].remapped_key.make_code = FUNCTION_KEYS[10];
+        remap_configuration.cfg[21].additional_keys[0].flags = KEY_BREAK;
 
-    //map ctrl + fullscreen -> f11
-    remap_configuration.cfg[21].LeftCtrl = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[21].LeftShift = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[21].originalKey.MakeCode = VIVALDI_FULLSCREEN as u16;
-    remap_configuration.cfg[21].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[21].remappedKey.MakeCode = function_keys[10];
-    remap_configuration.cfg[21].additionalKeys[0].Flags = KEY_BREAK;
+        //map ctrl + shift + fullscreen -> windows + p
+        remap_configuration.cfg[22].left_ctrl = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[22].left_shift = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[22].search = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[22].original_key.make_code = VIVALDI_FULLSCREEN as u16;
+        remap_configuration.cfg[22].original_key.flags = KEY_E0;
+        remap_configuration.cfg[22].remapped_key.make_code = 0x19;
+        remap_configuration.cfg[22].additional_keys[0].make_code = K_LCTRL as u16;
+        remap_configuration.cfg[22].additional_keys[0].flags = KEY_BREAK;
+        remap_configuration.cfg[22].additional_keys[1].make_code = K_LSHFT as u16;
+        remap_configuration.cfg[22].additional_keys[1].flags = KEY_BREAK;
+        remap_configuration.cfg[22].additional_keys[2].make_code = K_LWIN as u16;
+        remap_configuration.cfg[22].additional_keys[2].flags = KEY_E0;
 
-    //map ctrl + shift + fullscreen -> windows + p
-    remap_configuration.cfg[22].LeftCtrl = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[22].LeftShift = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[22].Search = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[22].originalKey.MakeCode = VIVALDI_FULLSCREEN as u16;
-    remap_configuration.cfg[22].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[22].remappedKey.MakeCode = 0x19;
-    remap_configuration.cfg[22].additionalKeys[0].MakeCode = K_LCTRL as u16;
-    remap_configuration.cfg[22].additionalKeys[0].Flags = KEY_BREAK;
-    remap_configuration.cfg[22].additionalKeys[1].MakeCode = K_LSHFT as u16;
-    remap_configuration.cfg[22].additionalKeys[1].Flags = KEY_BREAK;
-    remap_configuration.cfg[22].additionalKeys[2].MakeCode = K_LWIN as u16;
-    remap_configuration.cfg[22].additionalKeys[2].Flags = KEY_E0;
+        remap_configuration.cfg[23].left_ctrl = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[23].left_shift = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[23].search = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[23].original_key.make_code = VIVALDI_FULLSCREEN as u16;
+        remap_configuration.cfg[23].original_key.flags = KEY_E0;
+        remap_configuration.cfg[23].remapped_key.make_code = 0x19;
+        remap_configuration.cfg[23].additional_keys[0].make_code = K_LCTRL as u16;
+        remap_configuration.cfg[23].additional_keys[0].flags = KEY_BREAK;
+        remap_configuration.cfg[23].additional_keys[1].make_code = K_LSHFT as u16;
+        remap_configuration.cfg[23].additional_keys[1].flags = KEY_BREAK;
 
-    remap_configuration.cfg[23].LeftCtrl = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[23].LeftShift = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[23].Search = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[23].originalKey.MakeCode = VIVALDI_FULLSCREEN as u16;
-    remap_configuration.cfg[23].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[23].remappedKey.MakeCode = 0x19;
-    remap_configuration.cfg[23].additionalKeys[0].MakeCode = K_LCTRL as u16;
-    remap_configuration.cfg[23].additionalKeys[0].Flags = KEY_BREAK;
-    remap_configuration.cfg[23].additionalKeys[1].MakeCode = K_LSHFT as u16;
-    remap_configuration.cfg[23].additionalKeys[1].Flags = KEY_BREAK;
+        //map ctrl + overview -> windows + tab
+        remap_configuration.cfg[24].left_ctrl = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[24].left_shift = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[24].search = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[24].original_key.make_code = VIVALDI_OVERVIEW as u16;
+        remap_configuration.cfg[24].original_key.flags = KEY_E0;
+        remap_configuration.cfg[24].remapped_key.make_code = 0x0F;
+        remap_configuration.cfg[24].additional_keys[0].make_code = K_LCTRL as u16;
+        remap_configuration.cfg[24].additional_keys[0].flags = KEY_BREAK;
+        remap_configuration.cfg[24].additional_keys[1].make_code = K_LWIN as u16;
+        remap_configuration.cfg[24].additional_keys[1].flags = KEY_E0;
 
-    //map ctrl + overview -> windows + tab
-    remap_configuration.cfg[24].LeftCtrl = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[24].LeftShift = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[24].Search = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[24].originalKey.MakeCode = VIVALDI_OVERVIEW as u16;
-    remap_configuration.cfg[24].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[24].remappedKey.MakeCode = 0x0F;
-    remap_configuration.cfg[24].additionalKeys[0].MakeCode = K_LCTRL as u16;
-    remap_configuration.cfg[24].additionalKeys[0].Flags = KEY_BREAK;
-    remap_configuration.cfg[24].additionalKeys[1].MakeCode = K_LWIN as u16;
-    remap_configuration.cfg[24].additionalKeys[1].Flags = KEY_E0;
+        remap_configuration.cfg[25].left_ctrl = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[25].left_shift = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[25].search = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[25].original_key.make_code = VIVALDI_OVERVIEW as u16;
+        remap_configuration.cfg[25].original_key.flags = KEY_E0;
+        remap_configuration.cfg[25].remapped_key.make_code = 0x0F;
+        remap_configuration.cfg[25].additional_keys[0].make_code = K_LCTRL as u16;
+        remap_configuration.cfg[25].additional_keys[0].flags = KEY_BREAK;
 
-    remap_configuration.cfg[25].LeftCtrl = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[25].LeftShift = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[25].Search = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[25].originalKey.MakeCode = VIVALDI_OVERVIEW as u16;
-    remap_configuration.cfg[25].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[25].remappedKey.MakeCode = 0x0F;
-    remap_configuration.cfg[25].additionalKeys[0].MakeCode = K_LCTRL as u16;
-    remap_configuration.cfg[25].additionalKeys[0].Flags = KEY_BREAK;
+        //map ctrl + shift + overview -> windows + shift + s
+        remap_configuration.cfg[26].left_ctrl = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[26].left_shift = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[26].search = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[26].original_key.make_code = VIVALDI_OVERVIEW as u16;
+        remap_configuration.cfg[26].original_key.flags = KEY_E0;
+        remap_configuration.cfg[26].remapped_key.make_code = 0x1F;
+        remap_configuration.cfg[26].additional_keys[0].make_code = K_LCTRL as u16;
+        remap_configuration.cfg[26].additional_keys[0].flags = KEY_BREAK;
+        remap_configuration.cfg[26].additional_keys[1].make_code = K_LWIN as u16;
+        remap_configuration.cfg[26].additional_keys[1].flags = KEY_E0;
 
-    //map ctrl + shift + overview -> windows + shift + s
-    remap_configuration.cfg[26].LeftCtrl = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[26].LeftShift = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[26].Search = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[26].originalKey.MakeCode = VIVALDI_OVERVIEW as u16;
-    remap_configuration.cfg[26].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[26].remappedKey.MakeCode = 0x1F;
-    remap_configuration.cfg[26].additionalKeys[0].MakeCode = K_LCTRL as u16;
-    remap_configuration.cfg[26].additionalKeys[0].Flags = KEY_BREAK;
-    remap_configuration.cfg[26].additionalKeys[1].MakeCode = K_LWIN as u16;
-    remap_configuration.cfg[26].additionalKeys[1].Flags = KEY_E0;
+        remap_configuration.cfg[27].left_ctrl = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[27].left_shift = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[27].search = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[27].original_key.make_code = VIVALDI_OVERVIEW as u16;
+        remap_configuration.cfg[27].original_key.flags = KEY_E0;
+        remap_configuration.cfg[27].remapped_key.make_code = K_LCTRL as u16;
+        remap_configuration.cfg[27].additional_keys[0].make_code = K_LCTRL as u16;
+        remap_configuration.cfg[27].additional_keys[0].flags = KEY_BREAK;
 
-    remap_configuration.cfg[27].LeftCtrl = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[27].LeftShift = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[27].Search = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[27].originalKey.MakeCode = VIVALDI_OVERVIEW as u16;
-    remap_configuration.cfg[27].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[27].remappedKey.MakeCode = K_LCTRL as u16;
-    remap_configuration.cfg[27].additionalKeys[0].MakeCode =K_LCTRL as u16;
-    remap_configuration.cfg[27].additionalKeys[0].Flags = KEY_BREAK;
+        //map ctrl + snapshot -> windows + shift + s
+        remap_configuration.cfg[28].left_ctrl = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[28].left_shift = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[28].search = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[28].original_key.make_code = VIVALDI_SNAPSHOT as u16;
+        remap_configuration.cfg[28].original_key.flags = KEY_E0;
+        remap_configuration.cfg[28].remapped_key.make_code = 0x1F;
+        remap_configuration.cfg[28].additional_keys[0].make_code = K_LCTRL as u16;
+        remap_configuration.cfg[28].additional_keys[0].flags = KEY_BREAK;
+        remap_configuration.cfg[28].additional_keys[1].make_code = K_LWIN as u16;
+        remap_configuration.cfg[28].additional_keys[1].flags = KEY_E0;
+        remap_configuration.cfg[28].additional_keys[2].make_code = K_LSHFT as u16;
 
-    //map ctrl + snapshot -> windows + shift + s
-    remap_configuration.cfg[28].LeftCtrl = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[28].LeftShift = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[28].Search = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[28].originalKey.MakeCode = VIVALDI_SNAPSHOT as u16;
-    remap_configuration.cfg[28].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[28].remappedKey.MakeCode = 0x1F;
-    remap_configuration.cfg[28].additionalKeys[0].MakeCode = K_LCTRL as u16;
-    remap_configuration.cfg[28].additionalKeys[0].Flags = KEY_BREAK;
-    remap_configuration.cfg[28].additionalKeys[1].MakeCode = K_LWIN as u16;
-    remap_configuration.cfg[28].additionalKeys[1].Flags = KEY_E0;
-    remap_configuration.cfg[28].additionalKeys[2].MakeCode = K_LSHFT as u16;
+        remap_configuration.cfg[29].left_ctrl = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[29].left_shift = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[29].search = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[29].original_key.make_code = VIVALDI_SNAPSHOT as u16;
+        remap_configuration.cfg[29].remapped_key.make_code = 0x1F;
+        remap_configuration.cfg[29].additional_keys[0].make_code = K_LCTRL as u16;
+        remap_configuration.cfg[29].additional_keys[0].flags = KEY_BREAK;
+        remap_configuration.cfg[29].additional_keys[1].make_code = K_LSHFT as u16;
 
-    remap_configuration.cfg[29].LeftCtrl = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[29].LeftShift = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[29].Search = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[29].originalKey.MakeCode = VIVALDI_SNAPSHOT as u16;
-    remap_configuration.cfg[29].remappedKey.MakeCode = 0x1F;
-    remap_configuration.cfg[29].additionalKeys[0].MakeCode = K_LCTRL as u16;
-    remap_configuration.cfg[29].additionalKeys[0].Flags = KEY_BREAK;
-    remap_configuration.cfg[29].additionalKeys[1].MakeCode = K_LSHFT as u16;
+        remap_configuration.cfg[30].left_ctrl = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[30].left_shift = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[30].search = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[30].original_key.make_code = VIVALDI_SNAPSHOT as u16;
+        remap_configuration.cfg[30].original_key.flags = KEY_E0;
+        remap_configuration.cfg[30].remapped_key.make_code = 0x1f;
+        remap_configuration.cfg[30].additional_keys[0].make_code = K_LCTRL as u16;
+        remap_configuration.cfg[30].additional_keys[0].flags = KEY_BREAK;
+        remap_configuration.cfg[30].additional_keys[1].make_code = K_LWIN as u16;
+        remap_configuration.cfg[30].additional_keys[1].flags = KEY_E0;
 
-    remap_configuration.cfg[30].LeftCtrl = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[30].LeftShift = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[30].Search = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[30].originalKey.MakeCode = VIVALDI_SNAPSHOT as u16;
-    remap_configuration.cfg[30].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[30].remappedKey.MakeCode = 0x1f;
-    remap_configuration.cfg[30].additionalKeys[0].MakeCode = K_LCTRL as u16;
-    remap_configuration.cfg[30].additionalKeys[0].Flags = KEY_BREAK;
-    remap_configuration.cfg[30].additionalKeys[1].MakeCode = K_LWIN as u16;
-    remap_configuration.cfg[30].additionalKeys[1].Flags = KEY_E0;
+        remap_configuration.cfg[31].left_ctrl = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[31].left_shift = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[31].search = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[31].original_key.flags = KEY_E0;
+        remap_configuration.cfg[31].remapped_key.make_code = 0x1f;
+        remap_configuration.cfg[31].additional_keys[0].make_code = K_LCTRL as u16;
+        remap_configuration.cfg[31].additional_keys[0].flags = KEY_BREAK;
 
-    remap_configuration.cfg[31].LeftCtrl = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[31].LeftShift = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[31].Search = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[31].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[31].remappedKey.MakeCode = 0x1f;
-    remap_configuration.cfg[31].additionalKeys[0].MakeCode = K_LCTRL as u16;
-    remap_configuration.cfg[31].additionalKeys[0].Flags = KEY_BREAK;
+        //ctrl + alt + brightness -> ctrl + alt + kb brightness
 
-    //ctrl + alt + brightness -> ctrl + alt + kb brightness
+        remap_configuration.cfg[32].left_ctrl = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[32].left_alt = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[32].original_key.make_code = VIVALDI_BRIGHTNESS_DN as u16;
+        remap_configuration.cfg[32].original_key.flags = KEY_E0;
+        remap_configuration.cfg[32].remapped_key.make_code = VIVALDI_KBD_BKLIGHT_DOWN as u16;
+        remap_configuration.cfg[32].remapped_key.flags = KEY_E0;
 
-    remap_configuration.cfg[32].LeftCtrl = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[32].LeftAlt = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[32].originalKey.MakeCode = VIVALDI_BRIGHTNESS_DN as u16;
-    remap_configuration.cfg[32].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[32].remappedKey.MakeCode = VIVALDI_KBD_BKLIGHT_DOWN as u16;
-    remap_configuration.cfg[32].remappedKey.Flags = KEY_E0;
+        remap_configuration.cfg[33].left_ctrl = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[33].left_alt = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[33].original_key.make_code = VIVALDI_BRIGHTNESS_UP as u16;
+        remap_configuration.cfg[33].original_key.flags = KEY_E0;
+        remap_configuration.cfg[33].remapped_key.make_code = VIVALDI_KBD_BKLIGHT_UP as u16;
+        remap_configuration.cfg[33].remapped_key.flags = KEY_E0;
 
-    remap_configuration.cfg[33].LeftCtrl = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[33].LeftAlt = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[33].originalKey.MakeCode = VIVALDI_BRIGHTNESS_UP as u16;
-    remap_configuration.cfg[33].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[33].remappedKey.MakeCode = VIVALDI_KBD_BKLIGHT_UP as u16;
-    remap_configuration.cfg[33].remappedKey.Flags = KEY_E0;
+        //ctrl + left -> home
+        remap_configuration.cfg[34].left_ctrl = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[34].original_key.make_code = K_LEFT as u16;
+        remap_configuration.cfg[34].original_key.flags = KEY_E0;
+        remap_configuration.cfg[34].remapped_key.make_code = K_HOME as u16;
+        remap_configuration.cfg[34].remapped_key.flags = KEY_E0;
+        remap_configuration.cfg[34].additional_keys[0].make_code = K_LCTRL as u16;
+        remap_configuration.cfg[34].additional_keys[0].flags = KEY_BREAK;
 
-    //ctrl + left -> home
-    remap_configuration.cfg[34].LeftCtrl = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[34].originalKey.MakeCode = K_LEFT as u16;
-    remap_configuration.cfg[34].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[34].remappedKey.MakeCode = K_HOME as u16;
-    remap_configuration.cfg[34].remappedKey.Flags = KEY_E0;
-    remap_configuration.cfg[34].additionalKeys[0].MakeCode = K_LCTRL as u16;
-    remap_configuration.cfg[34].additionalKeys[0].Flags = KEY_BREAK;
+        //ctrl + right -> end
 
-    //ctrl + right -> end
+        remap_configuration.cfg[35].left_ctrl = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[35].original_key.make_code = K_RIGHT as u16;
+        remap_configuration.cfg[35].original_key.flags = KEY_E0;
+        remap_configuration.cfg[35].remapped_key.make_code = K_END as u16;
+        remap_configuration.cfg[35].remapped_key.flags = KEY_E0;
+        remap_configuration.cfg[35].additional_keys[0].make_code = K_LCTRL as u16;
+        remap_configuration.cfg[35].additional_keys[0].flags = KEY_BREAK;
 
-    remap_configuration.cfg[35].LeftCtrl = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[35].originalKey.MakeCode = K_RIGHT as u16;
-    remap_configuration.cfg[35].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[35].remappedKey.MakeCode = K_END as u16;
-    remap_configuration.cfg[35].remappedKey.Flags = KEY_E0;
-    remap_configuration.cfg[35].additionalKeys[0].MakeCode = K_LCTRL as u16;
-    remap_configuration.cfg[35].additionalKeys[0].Flags = KEY_BREAK;
+        //ctrl + up -> page up
+        remap_configuration.cfg[36].left_ctrl = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[36].original_key.make_code = K_UP as u16;
+        remap_configuration.cfg[36].original_key.flags = KEY_E0;
+        remap_configuration.cfg[36].remapped_key.make_code = K_PGUP as u16;
+        remap_configuration.cfg[36].remapped_key.flags = KEY_E0;
+        remap_configuration.cfg[36].additional_keys[0].make_code = K_LCTRL as u16;
+        remap_configuration.cfg[36].additional_keys[0].flags = KEY_BREAK;
 
-    //ctrl + up -> page up
-    remap_configuration.cfg[36].LeftCtrl = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[36].originalKey.MakeCode = K_UP as u16;
-    remap_configuration.cfg[36].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[36].remappedKey.MakeCode = K_PGUP as u16;
-    remap_configuration.cfg[36].remappedKey.Flags = KEY_E0;
-    remap_configuration.cfg[36].additionalKeys[0].MakeCode = K_LCTRL as u16;
-    remap_configuration.cfg[36].additionalKeys[0].Flags = KEY_BREAK;
+        //ctrl + down -> page down
+        remap_configuration.cfg[37].left_ctrl = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[37].original_key.make_code = K_DOWN as u16;
+        remap_configuration.cfg[37].original_key.flags = KEY_E0;
+        remap_configuration.cfg[37].remapped_key.make_code = K_PGDN as u16;
+        remap_configuration.cfg[37].remapped_key.flags = KEY_E0;
+        remap_configuration.cfg[37].additional_keys[0].make_code = K_LCTRL as u16;
+        remap_configuration.cfg[37].additional_keys[0].flags = KEY_BREAK;
 
-    //ctrl + down -> page down
-    remap_configuration.cfg[37].LeftCtrl = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[37].originalKey.MakeCode = K_DOWN as u16;
-    remap_configuration.cfg[37].originalKey.Flags = KEY_E0;
-    remap_configuration.cfg[37].remappedKey.MakeCode = K_PGDN as u16;
-    remap_configuration.cfg[37].remappedKey.Flags = KEY_E0;
-    remap_configuration.cfg[37].additionalKeys[0].MakeCode = K_LCTRL as u16;
-    remap_configuration.cfg[37].additionalKeys[0].Flags = KEY_BREAK;
+        //lock -> windows + L
 
+        remap_configuration.cfg[38].search = RemapCfgKeyStateEnforceNot;
+        remap_configuration.cfg[38].original_key.make_code = K_LOCK as u16;
+        remap_configuration.cfg[38].original_key.flags = 0;
+        remap_configuration.cfg[38].remapped_key.make_code = 0x26;
+        remap_configuration.cfg[38].additional_keys[0].make_code = K_LWIN as u16;
+        remap_configuration.cfg[38].additional_keys[0].flags = KEY_E0;
 
-    //lock -> windows + L
-
-    remap_configuration.cfg[38].Search = RemapCfgKeyStateEnforceNot;
-    remap_configuration.cfg[38].originalKey.MakeCode = K_LOCK as u16;
-    remap_configuration.cfg[38].originalKey.Flags = 0;
-    remap_configuration.cfg[38].remappedKey.MakeCode = 0x26;
-    remap_configuration.cfg[38].additionalKeys[0].MakeCode = K_LWIN as u16;
-    remap_configuration.cfg[38].additionalKeys[0].Flags = KEY_E0;
-
-    remap_configuration.cfg[39].Search = RemapCfgKeyStateEnforce;
-    remap_configuration.cfg[39].originalKey.MakeCode = K_LOCK as u16;
-    remap_configuration.cfg[39].originalKey.Flags = 0;
-    remap_configuration.cfg[39].remappedKey.MakeCode = 0x26;
-
-
+        remap_configuration.cfg[39].search = RemapCfgKeyStateEnforce;
+        remap_configuration.cfg[39].original_key.make_code = K_LOCK as u16;
+        remap_configuration.cfg[39].original_key.flags = 0;
+        remap_configuration.cfg[39].remapped_key.make_code = 0x26;
     }
 }
-#[derive(Copy, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Encode, Decode)]
 struct KeyStruct {
-    MakeCode: u16,
-    Flags: u16,
-    InternalFlags: u16,
+    make_code: u16,
+    flags: u16,
+    internal_flags: u16,
 }
 
-const max_current_keys: i32 = 20;
+impl KeyStruct {
+    fn new() -> Self {
+        KeyStruct {
+            make_code: 0,
+            flags: 0,
+            internal_flags: 0,
+        }
+    }
+}
 
-struct vivaldi_tester {
+
+#[derive(serde::Serialize, serde::Deserialize, Encode, Decode, Clone)]
+struct VivaldiTester {
     legacy_top_row_keys: [u8; 10],
     legacy_vivaldi: [u8; 10],
 
     function_row_count: u8,
     function_row_keys: [KeyStruct; 16],
 
-    remap_config: remap_configs,
+    remap_config: RemapConfigs,
 
     left_ctrl_pressed: bool,
     left_alt_pressed: bool,
@@ -563,28 +592,22 @@ struct vivaldi_tester {
     right_alt_pressed: bool,
     right_shift_pressed: bool,
 
-    current_keys: [KeyStruct; max_current_keys as usize],
+    current_keys: [KeyStruct; MAX_CURRENT_KEYS as usize],
+    last_key_pressed: KeyStruct,
 
+    remapped_keys: [RemappedKeyStruct; MAX_CURRENT_KEYS as usize],
     num_key_pressed: i32,
     num_remaps: i32,
 }
-impl KeyStruct {
+
+impl VivaldiTester {
     fn new() -> Self {
-        KeyStruct {
-            MakeCode: 0,
-            Flags: 0,
-            InternalFlags: 0,
-        }
-    }
-}
-impl vivaldi_tester {
-    fn new() -> Self {
-        vivaldi_tester {
+        VivaldiTester {
             legacy_top_row_keys: [0; 10],
             legacy_vivaldi: [0; 10],
             function_row_count: 13,
             function_row_keys: [KeyStruct::new(); 16],
-            remap_config: remap_configs::new(),
+            remap_config: RemapConfigs::new(),
             left_ctrl_pressed: false,
             left_alt_pressed: false,
             left_shift_pressed: false,
@@ -593,18 +616,105 @@ impl vivaldi_tester {
             right_ctrl_pressed: false,
             right_alt_pressed: false,
             right_shift_pressed: false,
-            current_keys: [KeyStruct::new(); max_current_keys as usize],
+            current_keys: [KeyStruct::new(); MAX_CURRENT_KEYS as usize],
+            last_key_pressed: KeyStruct::new(),
+            remapped_keys: [RemappedKeyStruct::new(); MAX_CURRENT_KEYS as usize],
             num_key_pressed: 0,
             num_remaps: 0,
         }
     }
+    fn find_key_index(&self, original_key: &RemapCfgKey) -> Option<usize> {
+        for (i, key) in self.function_row_keys.iter().enumerate() {
+            if key.make_code == original_key.make_code {
+                return Some(i);
+            }
+        }
+        None
+    }
+    fn add_remap(&mut self, remap: RemappedKeyStruct) -> bool
+    {
+        for i in 0..(MAX_CURRENT_KEYS as usize)
+        {
+            if self.remapped_keys[i].original_key.make_code == remap.original_key.make_code && self.remapped_keys[i].original_key.flags == remap.remapped_key.flags
+            {
+                if self.remapped_keys[i].mem_eq(&remap)
+                {
+                    return true; //remap exists
+                }
+                else
+                {
+                    return false;// remap exists but is not of the same configuration
+                }
+            }
+        }
+        return false;
+
+    }
+    fn garbage_collect(&mut self)
+    {
+        //clear out remap slots
+        for _ in 0..MAX_CURRENT_KEYS
+        {
+            let mut key_remap:[RemappedKeyStruct; MAX_CURRENT_KEYS as usize] = [RemappedKeyStruct::new(); MAX_CURRENT_KEYS as usize];
+            let empty_struct: RemappedKeyStruct = RemappedKeyStruct::new();
+            let mut j: i32 = 0;
+            for k in 0..MAX_CURRENT_KEYS
+            {
+                if self.remapped_keys[k as usize].mem_eq(&empty_struct)
+                {
+                    key_remap[j as usize] = self.remapped_keys[k as usize];
+                    j+=1;
+                }
+            }
+            self.num_remaps = j;
+        }
+
+        //clear out any empty key slots
+        for _ in 0..MAX_CURRENT_KEYS
+        {
+            let mut key_codes:[KeyStruct; MAX_CURRENT_KEYS as usize] = [KeyStruct::new(); MAX_CURRENT_KEYS as usize];
+            let mut j: i32 = 0;
+            for k in 0..MAX_CURRENT_KEYS
+            {
+                if self.current_keys[k as usize].flags != 0 || self.current_keys[k as usize].make_code !=0
+                {
+
+                    key_codes[j as usize] = self.current_keys[k as usize];
+                    j+=1;
+
+                }
+            }
+
+        }
+        
+    }
 }
 
-fn main() {
+fn main() -> std::io::Result<()> {
     println!("Hello, world!");
-    let mut reamp_config = vivaldi_tester::new();
-    //sets the config to default
-    reamp_config.remap_config.default();
 
-    
+    let mut remap_configuration = VivaldiTester::new();
+
+    // Reset to default settings
+    remap_configuration.remap_config.default();
+
+    // Serialize remap_config to binary bytes using bincode v2
+    let config = config::standard();
+
+    // Write to file
+    let mut dumped_settings_file = File::create("croskbsettings.bin").expect("Failed to open file");
+
+    let result = encode_into_std_write(
+        &remap_configuration.remap_config,
+        &mut dumped_settings_file,
+        config,
+    );
+    match result {
+        Err(e) => {
+            println!("Unable to write to file {}", e);
+        }
+        Ok(_) => {}
+    }
+
+    Ok(())
 }
