@@ -151,7 +151,8 @@ const MAX_CURRENT_KEYS: i32 = 20;
 
 
 //structs
-#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Encode, Decode)]
+#[repr(C, packed)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Decode)]
 struct RemapCfgKey {
     make_code: u16,
     flags: u16,
@@ -164,7 +165,6 @@ impl RemapCfgKey {
         }
     }
 }
-
 #[derive(serde::Serialize, serde::Deserialize, Encode, Decode, Clone, Copy)]
 struct RemappedKeyStruct
 {
@@ -179,19 +179,22 @@ impl  RemappedKeyStruct {
     
 }
 
+#[repr(u32)]
 #[derive(serde::Serialize, serde::Deserialize, Encode, Decode, Clone, Copy)]
 enum RemapCfgOverride {
-    RemapCfgOverrideAutoDetect,
-    RemapCfgOverrideEnable,
-    RemapCfgOverrideDisable,
+    RemapCfgOverrideAutoDetect = 0,
+    RemapCfgOverrideEnable = 1,
+    RemapCfgOverrideDisable = 2,
 }
+#[repr(u32)]
 #[derive(serde::Serialize, serde::Deserialize, Encode, Decode, Clone, Copy)]
 enum RemapCfgKeyState {
-    RemapCfgKeyStateNoDetect,
-    RemapCfgKeyStateEnforce,
-    RemapCfgKeyStateEnforceNot,
+    RemapCfgKeyStateNoDetect = 0,
+    RemapCfgKeyStateEnforce = 1,
+    RemapCfgKeyStateEnforceNot = 2,
 }
-#[derive(serde::Serialize, serde::Deserialize, Encode, Decode, Clone, Copy)]
+#[repr(C, packed)]
+#[derive(serde::Serialize, serde::Deserialize, Decode, Clone, Copy)]
 struct RemapConfigKeys {
     left_ctrl: RemapCfgKeyState,
     left_alt: RemapCfgKeyState,
@@ -225,7 +228,8 @@ impl RemapConfigKeys {
         }
     }
 }
-#[derive(serde::Serialize, serde::Deserialize, Encode, Decode, Clone)]
+#[repr(C, packed)]
+#[derive(serde::Deserialize, Decode, Clone)]
 struct RemapConfigs {
     magic: u32,
     remappings: u32,
@@ -572,7 +576,7 @@ impl KeyStruct {
 }
 
 
-#[derive(serde::Serialize, serde::Deserialize, Encode, Decode, Clone)]
+#[derive(serde::Deserialize, Decode, Clone)]
 struct VivaldiTester {
     legacy_top_row_keys: [u8; 10],
     legacy_vivaldi: [u8; 10],
@@ -684,6 +688,8 @@ impl VivaldiTester {
 
                 }
             }
+            self.num_key_pressed = j;
+            
 
         }
         
@@ -692,6 +698,7 @@ impl VivaldiTester {
 
 fn main() -> std::io::Result<()> {
     println!("Hello, world!");
+    check_sizes();
 
     let mut remap_configuration = VivaldiTester::new();
 
@@ -718,3 +725,16 @@ fn main() -> std::io::Result<()> {
 
     Ok(())
 }
+fn check_sizes() {
+    assert_eq!(std::mem::size_of::<RemapCfgKey>(), 4);
+    assert_eq!(std::mem::size_of::<RemapCfgKeyState>(), 4);
+    assert_eq!(std::mem::size_of::<RemapCfg>(), /* compute expected: 4*8 (enums) = 32 + 4 (original_key) +1 (bool) +4 (remapped_key) +32 (additional_keys) = 73 bytes? Actually: 8 enums *4 =32, original_key 4 =>36, bool 1 =>37, remapped_key 4 =>41, additional_keys 32 =>73. */ 73);
+    // But C++ code warns "if sizeof(RemapCfg) != 73 -> warning". Indeed they check sizeof ==73.
+    assert_eq!(std::mem::size_of::<RemapCfg>(), 73);
+    
+    // For header: sizeof header before cfg array:
+    // magic(4) + remappings(4) + bool(1) + RemapCfgOverride(4) + RemapCfgOverride(4) = 17 bytes?
+    // C++ code checks: if offsetof(RemapCfgs, cfg) != 17 => warning. Yes, 4+4+1+4+4 =17.
+    assert_eq!(std::mem::size_of::<RemapCfgsHeader>(), 17);
+}
+
