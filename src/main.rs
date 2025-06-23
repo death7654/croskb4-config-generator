@@ -1,3 +1,4 @@
+/*
 use crate::RemapCfgKeyState::{
     RemapCfgKeyStateEnforce, RemapCfgKeyStateEnforceNot, RemapCfgKeyStateNoDetect,
 };
@@ -8,7 +9,7 @@ use bincode::{self, Decode, Encode, config, encode_into_std_write};
 use std::fs::File;
 use mem_cmp::MemEq;
 
-/*
+
 Resources
 https://github.com/coreboot/chrome-ec/blob/1b359bdd91da15ea25aaffd0d940ff63b9d72bc5/include/keyboard_8042_sharedlib.h#L116
 
@@ -71,7 +72,7 @@ https://github.com/coreboot/chrome-ec/blob/1b359bdd91da15ea25aaffd0d940ff63b9d72
     SCANCODE_CTRL_BREAK = 0xe07e,
 };
 
- */
+
 
 const LOCATION: &str = "C:/Windows/System32/drivers";
 
@@ -176,7 +177,7 @@ impl  RemappedKeyStruct {
     {
         RemappedKeyStruct { original_key: KeyStruct::new(), remapped_key: KeyStruct::new() }
     }
-    
+
 }
 
 #[repr(u32)]
@@ -689,10 +690,10 @@ impl VivaldiTester {
                 }
             }
             self.num_key_pressed = j;
-            
+
 
         }
-        
+
     }
 }
 
@@ -731,10 +732,15 @@ fn check_sizes() {
     assert_eq!(std::mem::size_of::<RemapCfg>(), /* compute expected: 4*8 (enums) = 32 + 4 (original_key) +1 (bool) +4 (remapped_key) +32 (additional_keys) = 73 bytes? Actually: 8 enums *4 =32, original_key 4 =>36, bool 1 =>37, remapped_key 4 =>41, additional_keys 32 =>73. */ 73);
     // But C++ code warns "if sizeof(RemapCfg) != 73 -> warning". Indeed they check sizeof ==73.
     assert_eq!(std::mem::size_of::<RemapCfg>(), 73);
-    
+
     // For header: sizeof header before cfg array:
     // magic(4) + remappings(4) + bool(1) + RemapCfgOverride(4) + RemapCfgOverride(4) = 17 bytes?
     // C++ code checks: if offsetof(RemapCfgs, cfg) != 17 => warning. Yes, 4+4+1+4+4 =17.
     assert_eq!(std::mem::size_of::<RemapCfgsHeader>(), 17);
 }
+*/
+include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
+fn main() {
+    println!("done")
+}
