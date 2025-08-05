@@ -1,4 +1,4 @@
-/*
+
 use crate::RemapCfgKeyState::{
     RemapCfgKeyStateEnforce, RemapCfgKeyStateEnforceNot, RemapCfgKeyStateNoDetect,
 };
@@ -9,7 +9,7 @@ use bincode::{self, Decode, Encode, config, encode_into_std_write};
 use std::fs::File;
 use mem_cmp::MemEq;
 
-
+/*
 Resources
 https://github.com/coreboot/chrome-ec/blob/1b359bdd91da15ea25aaffd0d940ff63b9d72bc5/include/keyboard_8042_sharedlib.h#L116
 
@@ -71,7 +71,7 @@ https://github.com/coreboot/chrome-ec/blob/1b359bdd91da15ea25aaffd0d940ff63b9d72
 
     SCANCODE_CTRL_BREAK = 0xe07e,
 };
-
+*/
 
 
 const LOCATION: &str = "C:/Windows/System32/drivers";
@@ -230,7 +230,7 @@ impl RemapConfigKeys {
     }
 }
 #[repr(C, packed)]
-#[derive(serde::Deserialize, Decode, Clone)]
+#[derive(serde::Deserialize, Decode)]
 struct RemapConfigs {
     magic: u32,
     remappings: u32,
@@ -248,7 +248,7 @@ impl RemapConfigs {
             flip_search_and_assistant_on_pixelbook: false,
             has_assistant_key: RemapCfgOverrideAutoDetect,
             is_non_chrome_ec: RemapCfgOverrideAutoDetect,
-            cfg: [config; 1].to_vec(),
+            cfg: [config; 40].to_vec(),
         }
     }
     fn default(&mut self) {
@@ -577,7 +577,7 @@ impl KeyStruct {
 }
 
 
-#[derive(serde::Deserialize, Decode, Clone)]
+#[derive(serde::Deserialize, Decode)]
 struct VivaldiTester {
     legacy_top_row_keys: [u8; 10],
     legacy_vivaldi: [u8; 10],
@@ -738,9 +738,4 @@ fn check_sizes() {
     // C++ code checks: if offsetof(RemapCfgs, cfg) != 17 => warning. Yes, 4+4+1+4+4 =17.
     assert_eq!(std::mem::size_of::<RemapCfgsHeader>(), 17);
 }
-*/
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
-fn main() {
-    println!("done")
-}

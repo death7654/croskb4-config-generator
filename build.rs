@@ -1,39 +1,42 @@
 use std::env;
 use std::path::PathBuf;
-
-use bindgen;
+use cc;
 
 fn main() {
-    // Re-run the build script if these files change
-    println!("cargo:rerun-if-changed=wrapper.h");
-    println!("cargo:rerun-if-changed=keyboard.h");
+    // Tell cargo to look for shared libraries in the specified directory
+    println!("cargo:rustc-link-search=/path/to/lib");
 
-    // Generate the bindings
-    let bindings = bindgen::Builder::default()
+    // Tell cargo to tell rustc to link the system bzip2
+    // shared library.
+    println!("cargo:rustc-link-lib=bz2");
+
+    cc::Build::new()
+    .cpp(true)
+    .file("wrapper.cpp") // your wrapper
+    .flag_if_supported("-std=c++17")
+    .compile("vivaldi_wrapper");
+
+
+    // The bindgen::Builder is the main entry point
+    // to bindgen, and lets you build up options for
+    // the resulting bindings.
+        let bindings = bindgen::Builder::default()
         .header("wrapper.h")
-        .clang_arg("-xc++") // use C++ instead of C
+        .clang_arg("-xc++")
         .clang_arg("-std=c++17")
-        .clang_arg("-fms-compatibility") // 🔹 Avoid MSVC C++ issues
-        .clang_arg("-DUSHORT=uint16_t")
-        .clang_arg("-DULONG=uint32_t")
-        .clang_arg("-DPULONG=uint32_t*")
-        .clang_arg("-DBOOLEAN=bool")
-        .clang_arg("-DTRUE=1")
-        .clang_arg("-DFALSE=0")
-        .clang_arg("-include")
-        .clang_arg("stdint.h") // ensure stdint types like uint16_t are known
-        .allowlist_type("KEYBOARD_INPUT_DATA")
-        .allowlist_var("KEY_.*")
-        .allowlist_var("K_.*")
-        .allowlist_var("VIVALDI_.*")
-        .allowlist_var("CROSKBHID_.*")
-        .allowlist_var("REMAP_CFG_MAGIC")
+        .layout_tests(false)
+        .derive_default(true)
+        .generate_comments(true)
+        .generate_inline_functions(true)
+        .allowlist_type(".*")         // ⬅️ include ALL types
+        .allowlist_function(".*")     // ⬅️ include ALL functions
+        .allowlist_var(".*")          // ⬅️ include ALL constants/macros
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
         .generate()
         .expect("Unable to generate bindings");
 
-    // Write bindings to the output directory
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    bindings
-        .write_to_file(out_path.join("bindings.rs"))
-        .expect("Couldn't write bindings!");
+let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+bindings.write_to_file(out_path.join("bindings.rs")).unwrap();
+
+
 }

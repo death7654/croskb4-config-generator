@@ -1,6 +1,8 @@
 //
 // NtReadFile Output Buffer record structures for this device.
 //
+#pragma once
+
 #include <cstdint>
 
 #define USHORT uint16_t
@@ -21,7 +23,7 @@ typedef struct _KEYBOARD_INPUT_DATA {
     // miscellaneous scan code information defined below.
     //
     USHORT Flags;
-    USHORT Reserved;
+    USHORT Reserved; 
     //
     // Device-specific additional information for the event.
     //

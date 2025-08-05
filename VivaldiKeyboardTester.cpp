@@ -3,7 +3,6 @@
 
 #include "keyboard.h"
 
-
 int main()
 {
     VivaldiTester test;
