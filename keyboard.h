@@ -146,6 +146,7 @@ void ReceiveKeys_Guarded(PKEYBOARD_INPUT_DATA startPtr, PKEYBOARD_INPUT_DATA end
 #define INTFLAG_NEW 0x1
 #define INTFLAG_REMOVED 0x2
 
+//make smaller
 #include <pshpack1.h>
 
 typedef struct RemapCfgKey {
