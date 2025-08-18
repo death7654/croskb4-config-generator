@@ -260,6 +260,8 @@ VivaldiTester::VivaldiTester() {
     };
 
     filterExt->numKeysPressed = 0;
+
+    //need to impl below
     RtlZeroMemory(&filterExt->currentKeys, sizeof(filterExt->currentKeys));
     RtlZeroMemory(&filterExt->lastKeyPressed, sizeof(filterExt->lastKeyPressed));
 

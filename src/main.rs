@@ -136,12 +136,190 @@ struct _RemapCfgKey
 pub type RemapCfgKey = _RemapCfgKey;
 pub type PRemapCfgKey = *mut _RemapCfgKey;
 
-enum RemapCfgOverride
+enum _RemapCfgOverride
 {
     RemapCfgOverrideAutoDetect,
     RemapCfgOverrideEnable,
     RemapCfgOverrideDisable
 }
+
+pub type RemapCfgOverride = _RemapCfgOverride;
+pub type PRemapCfgOverride = *mut _RemapCfgOverride;
+
+enum _RemapCfgKeyState
+{
+    RemapCfgKeyStateNoDetect,
+    RemapCfgKeyStateEnforce,
+    RemapCfgKeyStateEnforceNot
+}
+
+pub type RemapCfgKeyState = _RemapCfgKeyState;
+pub type PRemapCfgKeyState = *mut _RemapCfgKeyState;
+
+#[repr(C, packed(1))]
+#[derive(Debug, Copy, Clone)]
+struct _RemapCfgKey{
+    LeftCtrl: RemapCfgKeyState,
+    LeftAlt: RemapCfgKeyState,
+    Search: RemapCfgKeyState,
+    Assistant: RemapCfgKeyState,
+    LeftShift: RemapCfgKeyState,
+    RightCtrl: RemapCfgKeyState,
+    RightAlt: RemapCfgKeyState,
+    RightShift: RemapCfgKeyState,
+
+    originalKey: bool,
+
+    remappedKey: RemapCfgKey,
+    additionalKey: [RemapCfgKey; 8]
+}
+
+pub type RemapCfg = _RemapCfgKey;
+pub type PRemapCfg = *mut _RemapCfgKey;
+
+#[repr(C, packed(1))]
+#[derive(Debug, Copy, Clone)]
+struct _RemapCfgs
+{
+    magic: u32,
+    remap: u32,
+    FlipSearchAndAssistantOnPixelbook: bool,
+    HasAssistantKey:  RemapCfgOverride,
+    IsNonChromeEC: RemapCfgOverride,
+    cfg: [RemapCfg;1]
+}
+
+pub type RemapCfgs = _RemapCfgs;
+pub type PRemapCfgs = *mut _RemapCfgs;
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+struct _KeyStruct
+{
+    MakeCode: u16,
+    Flags: u16,
+    InternalFlags: u16
+}
+
+pub type KeyStruct = _KeyStruct;
+pub type PRKeyStruct = *mut _KeyStruct;
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+struct _RemappedKeyStruct
+{
+    origKey: KeyStruct,
+    remappedKey: KeyStruct
+}
+
+pub type RemappedKeyStruct = _RemappedKeyStruct;
+pub type PRemappedKeyStruc = *mut _RemappedKeyStruct;
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+struct VivaldiTester
+{
+    legacyTopRowKeys: [u8; 10],
+    legacyVivaldi: [u8; 10],
+
+    functionRowCount: u8,
+    functionRowKeys: [KeyStruct; 16],
+
+    remapCfgs: PRemapCfgs,
+
+    LeftCtrlPressed: bool,
+    LeftAltPressed: bool,
+    LeftShiftPressed: bool,
+    AssistantPressed: bool,
+    SearchPressed: bool,
+
+    RightCtrlPressed: bool,
+    RightAltPressed: bool,
+    RightShiftPressed: bool,
+
+    currentKeys: [MAX_CURRENT_KEYS; KeyStruct],
+    lastKeyPressed: KeyStruct,
+
+    numKeysPressed: i32,
+
+    remappedKeys: [MAX_CURRENT_KEYS; RemappedKeyStruct],
+    numRemaps: i32 
+}
+
+impl VivaldiTester
+{
+    //numkeyspressed should be 0
+    fn updateKey(key: KeyStruct)
+    {
+
+    }
+    fn addRemap(remap: RemappedKeyStruct) -> bool
+    {
+
+    }
+    fn garbageCollect()
+    {
+
+    }
+
+    fn checkKey(key: KeyboardInputData, report: [MAX_CURRENT_KEYS; KeyStruct]) -> bool
+    {
+
+    }
+
+    fn addKey(key: KeyboardInputData, data: [MAX_CURRENT_KEYS; KeyboardInputData]) -> bool
+    {
+
+    }
+
+    fn IdexOfFnKey(originalKey: RemapCfgKey) -> i32
+    {
+
+    }
+
+    fn RemapLoaded(report: [MAX_CURRENT_KEYS; KeyboardInputData], dataBefore: [MAX_CURRENT_KEYS; KeyboardInputData], dataAfter: [MAX_CURRENT_KEYS; KeyboardInputData])
+    {
+
+    }
+
+    pub fn VivaldiTester(&self)
+    {
+        const LEGACY_VIVALDI: [u8; 10] = [
+            VIVALDI_BACK,
+            VIVALDI_FWD,
+            VIVALDI_REFRESH,
+            VIVALDI_FULLSCREEN,
+            VIVALDI_OVERVIEW,
+            VIVALDI_BRIGHTNESS_DN,
+            VIVALDI_BRIGHTNESS_UP,
+            VIVALDI_MUTE,
+            VIVALDI_VOL_DN,
+            VIVALDI_VOL_UP,
+        ]; 
+
+        const LEGACY_VIVALDI_PIXELBOOK: [u8; 10] = [
+            VIVALDI_BACK,
+            VIVALDI_REFRESH,
+            VIVALDI_FULLSCREEN,
+            VIVALDI_OVERVIEW,
+            VIVALDI_BRIGHTNESS_DN,
+            VIVALDI_BRIGHTNESS_UP,
+            VIVALDI_PLAY_PAUSE,
+            VIVALDI_MUTE,
+            VIVALDI_VOL_DN,
+            VIVALDI_VOL_UP,
+        ];
+        self.numKeysPressed = 0;
+}
+
+    fn ServiceCallback(InputDataStart: PkeyboardInputData, InputDataEnd: PkeyboardInputData, InputDataConsumed: u32)
+    {
+
+    }
+
+}
+
+
 
 fn main()
 {
