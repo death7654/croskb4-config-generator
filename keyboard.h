@@ -304,6 +304,9 @@ VivaldiTester::VivaldiTester() {
 
     //Begin map vivalid keys (without Ctrl) to F# keys
 
+
+
+    // impl below
     remapCfgs->magic = REMAP_CFG_MAGIC;
     remapCfgs->FlipSearchAndAssistantOnPixelbook = TRUE;
     remapCfgs->HasAssistantKey = RemapCfgOverrideAutoDetect;
