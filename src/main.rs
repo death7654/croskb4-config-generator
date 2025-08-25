@@ -3,10 +3,14 @@ use bincode::{self, config};
 use mem_cmp::MemEq;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
+use std::mem;
 use std::ops::Rem;
 use std::os::raw::c_ulong;
 use std::ptr;
 use std::slice;
+
+use static_assertions::const_assert;
+
 
 // Keycodes and constants
 const LOCATION: &str = "C:/Windows/System32/drivers";
@@ -98,9 +102,9 @@ pub struct _KeyboardInputData {
 pub type KeyboardInputData = _KeyboardInputData;
 pub type PkeyboardInputData = *mut _KeyboardInputData;
 
-const FUNCTION_KEYS: [u8; 16] = [
-    0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x40, 0x41, 0x42, 0x43, 0x44, 0x57, 0x58, // F13 - F16
-    0x64, 0x64, 0x66, 0x67,
+const FUNCTION_KEYS: [u8; 10] = [
+    0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x40, 0x41, 0x42, 0x43, 0x44,// 0x57, 0x58, // F13 - F16
+    //0x64, 0x64, 0x66, 0x67,
 ];
 
 pub type PULONG = c_ulong;
@@ -124,6 +128,7 @@ struct _RemapCfgKey {
 pub type RemapCfgKey = _RemapCfgKey;
 pub type PRemapCfgKey = *mut _RemapCfgKey;
 
+#[derive(Debug, Copy, Clone)]
 enum _RemapCfgOverride {
     RemapCfgOverrideAutoDetect,
     RemapCfgOverrideEnable,
@@ -133,6 +138,7 @@ enum _RemapCfgOverride {
 pub type RemapCfgOverride = _RemapCfgOverride;
 pub type PRemapCfgOverride = *mut _RemapCfgOverride;
 
+#[derive(Debug, Copy, Clone)]
 enum _RemapCfgKeyState {
     RemapCfgKeyStateNoDetect,
     RemapCfgKeyStateEnforce,
@@ -144,7 +150,7 @@ pub type PRemapCfgKeyState = *mut _RemapCfgKeyState;
 
 #[repr(C, packed(1))]
 #[derive(Debug, Copy, Clone)]
-struct _RemapCfgKey {
+struct _RemapCfg {
     LeftCtrl: RemapCfgKeyState,
     LeftAlt: RemapCfgKeyState,
     Search: RemapCfgKeyState,
@@ -219,31 +225,39 @@ struct VivaldiTester {
     RightAltPressed: bool,
     RightShiftPressed: bool,
 
-    currentKeys: [MAX_CURRENT_KEYS; KeyStruct],
+    currentKeys: [_KeyStruct; MAX_CURRENT_KEYS],
     lastKeyPressed: KeyStruct,
 
     numKeysPressed: i32,
 
-    remappedKeys: [MAX_CURRENT_KEYS; RemappedKeyStruct],
+    remappedKeys: [_RemappedKeyStruct; MAX_CURRENT_KEYS],
     numRemaps: i32,
 }
 
 impl VivaldiTester {
     //numkeyspressed should be 0
     fn updateKey(key: KeyStruct) {}
-    fn addRemap(remap: RemappedKeyStruct) -> bool {}
+    fn addRemap(remap: RemappedKeyStruct) -> bool {
+        return false;
+    }
     fn garbageCollect() {}
 
-    fn checkKey(key: KeyboardInputData, report: [MAX_CURRENT_KEYS; KeyStruct]) -> bool {}
+    fn checkKey(key: KeyboardInputData, report: [KeyStruct; MAX_CURRENT_KEYS]) -> bool {
+        return false;
+    }
 
-    fn addKey(key: KeyboardInputData, data: [MAX_CURRENT_KEYS; KeyboardInputData]) -> bool {}
+    fn addKey(key: KeyboardInputData, data: [KeyboardInputData; MAX_CURRENT_KEYS]) -> bool {
+        return false;
+    }
 
-    fn IdexOfFnKey(originalKey: RemapCfgKey) -> i32 {}
+    fn IdexOfFnKey(originalKey: RemapCfgKey) -> i32 {
+        return 0;
+    }
 
     fn RemapLoaded(
-        report: [MAX_CURRENT_KEYS; KeyboardInputData],
-        dataBefore: [MAX_CURRENT_KEYS; KeyboardInputData],
-        dataAfter: [MAX_CURRENT_KEYS; KeyboardInputData],
+        report: [KeyboardInputData; MAX_CURRENT_KEYS],
+        dataBefore:[KeyboardInputData; MAX_CURRENT_KEYS],
+        dataAfter:[KeyboardInputData; MAX_CURRENT_KEYS],
     ) {
     }
 
@@ -275,24 +289,34 @@ impl VivaldiTester {
         ];
         self.numKeysPressed = 0;
 
-        RtlZeroMemory(self.currentKeys, mem::size_of_val(self.currentKeys));
-        RtlZeroMemory(self.lastKeyPressed, mem::size_of_val(self.lastKeyPressed));
+        let  key_pointer: *mut [_KeyStruct; MAX_CURRENT_KEYS] =   &mut self.currentKeys;
+        RtlZeroMemory(key_pointer, mem::size_of_val(&key_pointer));
 
-        RtlZeroMemory(self.remappedKeys, mem::size_of_val(self.remappedKeys));
+        let last_key_pointer: *mut _KeyStruct = &mut self.lastKeyPressed;
+        RtlZeroMemory(last_key_pointer, mem::size_of_val(&last_key_pointer));
+
+        let remapped_key_pointer: *mut [_RemappedKeyStruct; MAX_CURRENT_KEYS] = &mut self.remappedKeys;
+        RtlZeroMemory(remapped_key_pointer, mem::size_of_val(&remapped_key_pointer));
         self.numRemaps = 0;
 
+        let function_row_key_pointer: *mut [_KeyStruct; 16] = &mut self.functionRowKeys;
+        RtlZeroMemory(function_row_key_pointer, mem::size_of_val(&function_row_key_pointer));
         self.functionRowCount = 0;
-        RtlZeroMemory(self.functionRowKeys, mem::size_of_val(self.functionRowKeys));
 
+
+        let legacy_top_row_key_pointer: *mut [u8; 10] = &mut self.legacyTopRowKeys;
+        let function_key_pointer: *mut [u8; 10] = &mut FUNCTION_KEYS;
         RtlCopyMemory(
-            self.legacyTopRowKeys,
-            FUNCTION_KEYS,
-            mem::size_of_val(self.legacyTopRowKeys),
+            legacy_top_row_key_pointer,
+            function_key_pointer,
+            mem::size_of_val(&legacy_top_row_key_pointer),
         );
+        let legacy_vivaldi_pointer: *mut [u8; 10] = &mut self.legacyVivaldi;
+        let const_legacy_vivaldi_pointer:*mut [u8;10] = &mut LEGACY_VIVALDI;
         RtlCopyMemory(
-            self.legacyVivaldi,
-            LEGACY_VIVALDI,
-            mem::size_of_val(self.legacyVivaldi),
+            legacy_vivaldi_pointer,
+            const_legacy_vivaldi_pointer,
+            mem::size_of_val(&self.legacyVivaldi),
         );
 
         self.functionRowCount = 13;
@@ -303,18 +327,18 @@ impl VivaldiTester {
             VIVALDI_FULLSCREEN,
             VIVALDI_OVERVIEW,
             VIVALDI_SNAPSHOT,
-            VIVALDI_BRIGHTNESSDN,
-            VIVALDI_BRIGHTNESSUP,
+            VIVALDI_BRIGHTNESS_DN,
+            VIVALDI_BRIGHTNESS_UP,
             VIVALDI_KBD_BKLIGHT_DOWN,
             VIVALDI_KBD_BKLIGHT_UP,
-            VIVALDI_PLAYPAUSE,
+            VIVALDI_PLAY_PAUSE,
             VIVALDI_MUTE,
-            VIVALDI_VOLDN,
-            VIVALDI_VOLUP,
+            VIVALDI_VOL_DN,
+            VIVALDI_VOL_UP,
         ];
 
-        for i in 0..size_of_val(JINLON_KEYS) {
-            self.functionRowKeys[i].MakeCode = JINLON_KEYS[i];
+        for i in 0..size_of_val(&JINLON_KEYS) {
+            self.functionRowKeys[i].MakeCode = JINLON_KEYS[i] as u16;
             self.functionRowKeys[i].Flags = KEY_E0;
         }
 
@@ -345,6 +369,10 @@ impl VivaldiTester {
             raw_ptr as *mut RemapCfgs
         };
         RtlZeroMemory(remap_cfgs, cfg_size);
+
+        self.remapCfgs.magic = CFG_MAGIC;
+        self.remapCfgs.FlipSearchAndAssistantOnPixelbook = true;
+        self.remapCfgs.HasAssistantKey = RemapCfgOverrideAutoDetect;
     }
 
     fn ServiceCallback(
