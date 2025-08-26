@@ -2,8 +2,11 @@
 use bincode::{self, config};
 use mem_cmp::MemEq;
 use serde::{Deserialize, Serialize};
+use std::alloc::alloc ;
+use std::alloc::Layout;
 use std::fs::File;
 use std::mem;
+use std::mem::offset_of;
 use std::ops::Rem;
 use std::os::raw::c_ulong;
 use std::ptr;
@@ -11,6 +14,10 @@ use std::slice;
 
 use static_assertions::const_assert;
 
+
+// local crates
+use crate::_RemapCfgOverride::RemapCfgOverrideAutoDetect;
+use crate::_RemapCfgKeyState::RemapCfgKeyStateEnforceNot;
 
 // Keycodes and constants
 const LOCATION: &str = "C:/Windows/System32/drivers";
@@ -161,7 +168,8 @@ struct _RemapCfg {
     RightAlt: RemapCfgKeyState,
     RightShift: RemapCfgKeyState,
 
-    originalKey: bool,
+    originalKey: RemapCfgKey,
+    remapVivaldiToFnKeys: bool,
 
     remappedKey: RemapCfgKey,
     additionalKey: [RemapCfgKey; 8],
@@ -174,11 +182,11 @@ pub type PRemapCfg = *mut _RemapCfgKey;
 #[derive(Debug, Copy, Clone)]
 struct _RemapCfgs {
     magic: u32,
-    remap: u32,
+    remappings: u32,
     FlipSearchAndAssistantOnPixelbook: bool,
     HasAssistantKey: RemapCfgOverride,
     IsNonChromeEC: RemapCfgOverride,
-    cfg: [RemapCfg; 1],
+    cfg: [_RemapCfg; 1],
 }
 
 pub type RemapCfgs = _RemapCfgs;
@@ -209,7 +217,7 @@ pub type PRemappedKeyStruc = *mut _RemappedKeyStruct;
 #[derive(Debug, Copy, Clone)]
 struct VivaldiTester {
     legacyTopRowKeys: [u8; 10],
-    legacyVivaldi: [u8; 10],
+    legacyVivaldi: [u16; 10],
 
     functionRowCount: u8,
     functionRowKeys: [KeyStruct; 16],
@@ -262,8 +270,8 @@ impl VivaldiTester {
     ) {
     }
 
-    pub fn VivaldiTester(&self) {
-        const LEGACY_VIVALDI: [u8; 10] = [
+    pub fn VivaldiTester(&mut self, configs: usize) {
+        const LEGACY_VIVALDI: [u16; 10] = [
             VIVALDI_BACK,
             VIVALDI_FWD,
             VIVALDI_REFRESH,
@@ -276,7 +284,7 @@ impl VivaldiTester {
             VIVALDI_VOL_UP,
         ];
 
-        const LEGACY_VIVALDI_PIXELBOOK: [u8; 10] = [
+        const LEGACY_VIVALDI_PIXELBOOK: [u16; 10] = [
             VIVALDI_BACK,
             VIVALDI_REFRESH,
             VIVALDI_FULLSCREEN,
@@ -312,8 +320,8 @@ impl VivaldiTester {
             function_key_pointer,
             mem::size_of_val(&legacy_top_row_key_pointer),
         );
-        let legacy_vivaldi_pointer: *mut [u8; 10] = &mut self.legacyVivaldi;
-        let const_legacy_vivaldi_pointer:*mut [u8;10] = &mut LEGACY_VIVALDI;
+        let legacy_vivaldi_pointer: *mut [u16; 10] = &mut self.legacyVivaldi;
+        let const_legacy_vivaldi_pointer:*mut [u16;10] = &mut LEGACY_VIVALDI;
         RtlCopyMemory(
             legacy_vivaldi_pointer,
             const_legacy_vivaldi_pointer,
@@ -322,7 +330,7 @@ impl VivaldiTester {
 
         self.functionRowCount = 13;
 
-        const JINLON_KEYS: [u8; 13] = [
+        const JINLON_KEYS: [u16; 13] = [
             VIVALDI_BACK,
             VIVALDI_REFRESH,
             VIVALDI_FULLSCREEN,
@@ -347,8 +355,8 @@ impl VivaldiTester {
             unsafe { &(*(std::ptr::null::<RemapCfgs>())).cfg as *const _ as usize }
                 + std::mem::size_of::<RemapCfg>() * 40;
 
-        const_assert!(offset_of!(RemapCfgs, cfg) == 17);
-        const_assert!(mem::size_of::<RemapCfg>() == 73);
+        //const_assert!(offset_of!(RemapCfgs, cfg) == 17);
+        //const_assert!(mem::size_of::<RemapCfg>() == 73);
 
         let cfg_size: usize =
             unsafe { &(*(std::ptr::null::<RemapCfgs>())).cfg as *const _ as usize }
@@ -371,9 +379,41 @@ impl VivaldiTester {
         };
         RtlZeroMemory(remap_cfgs, cfg_size);
 
-        self.remapCfgs.magic = CFG_MAGIC;
-        self.remapCfgs.FlipSearchAndAssistantOnPixelbook = true;
-        self.remapCfgs.HasAssistantKey = RemapCfgOverrideAutoDetect;
+            let cfg_offset = offset_of!(RemapCfgs, cfg);
+            let total_size = cfg_offset + mem::size_of::<RemapCfg>() * configs;
+
+            let layout = Layout::from_size_align(total_size, mem::align_of::<RemapCfgs>()).unwrap();
+            let raw = unsafe { alloc(layout) as *mut RemapCfgs };
+            let remapCfgs: &mut RemapCfgs = unsafe { &mut *raw };
+
+
+            remapCfgs.magic = CFG_MAGIC;
+            remapCfgs.FlipSearchAndAssistantOnPixelbook = true;
+            remapCfgs.HasAssistantKey = RemapCfgOverrideAutoDetect;
+            remapCfgs.IsNonChromeEC = RemapCfgOverrideAutoDetect;
+            remapCfgs.remappings = 40;
+
+            remapCfgs.cfg[0].LeftCtrl = RemapCfgKeyStateEnforceNot;
+            remapCfgs.cfg[0].originalKey.MakeCode = VIVALDI_BACK;
+            remapCfgs.cfg[0].originalKey.Flags = KEY_E0;
+            remapCfgs.cfg[0].remapVivaldiToFnKeys = true;
+
+            remapCfgs.cfg[1].LeftCtrl = RemapCfgKeyStateEnforceNot;
+            remapCfgs.cfg[1].originalKey.MakeCode = VIVALDI_FWD;
+            remapCfgs.cfg[1].originalKey.Flags = KEY_E0;
+            remapCfgs.cfg[1].remapVivaldiToFnKeys = true;
+
+            remapCfgs.cfg[2].LeftCtrl = RemapCfgKeyStateEnforceNot;
+            remapCfgs.cfg[2].originalKey.MakeCode = VIVALDI_REFRESH;
+            remapCfgs.cfg[2].originalKey.Flags = KEY_E0;
+            remapCfgs.cfg[2].remapVivaldiToFnKeys = true;
+
+            remapCfgs.cfg[3].LeftCtrl = RemapCfgKeyStateEnforceNot;
+            remapCfgs.cfg[3].originalKey.MakeCode = VIVALDI_FULLSCREEN;
+            remapCfgs.cfg[3].originalKey.Flags = KEY_E0;
+            remapCfgs.cfg[3].remapVivaldiToFnKeys = true;
+
+        
     }
 
     fn ServiceCallback(

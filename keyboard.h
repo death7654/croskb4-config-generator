@@ -306,7 +306,6 @@ VivaldiTester::VivaldiTester() {
 
 
 
-    // impl below
     remapCfgs->magic = REMAP_CFG_MAGIC;
     remapCfgs->FlipSearchAndAssistantOnPixelbook = TRUE;
     remapCfgs->HasAssistantKey = RemapCfgOverrideAutoDetect;
@@ -319,7 +318,7 @@ VivaldiTester::VivaldiTester() {
     remapCfgs->cfg[0].originalKey.MakeCode = VIVALDI_BACK;
     remapCfgs->cfg[0].originalKey.Flags = KEY_E0;
     remapCfgs->cfg[0].remapVivaldiToFnKeys = TRUE;
-
+    //
     remapCfgs->cfg[1].LeftCtrl = RemapCfgKeyStateEnforceNot;
     remapCfgs->cfg[1].originalKey.MakeCode = VIVALDI_FWD;
     remapCfgs->cfg[1].originalKey.Flags = KEY_E0;
@@ -335,6 +334,8 @@ VivaldiTester::VivaldiTester() {
     remapCfgs->cfg[3].originalKey.Flags = KEY_E0;
     remapCfgs->cfg[3].remapVivaldiToFnKeys = TRUE;
 
+
+    //impl below
     remapCfgs->cfg[4].LeftCtrl = RemapCfgKeyStateEnforceNot;
     remapCfgs->cfg[4].originalKey.MakeCode = VIVALDI_OVERVIEW;
     remapCfgs->cfg[4].originalKey.Flags = KEY_E0;
