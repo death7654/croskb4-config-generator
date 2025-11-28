@@ -16,7 +16,7 @@ This tool generates `croskbsettings.bin`, a configuration file used by the [Cros
 
 
 ### Prerequisites
-- Rust toolchain (install from [rustup.rs](https://rustup.rs/))
+- Rust toolchain (install from [rust-lang.org](https://rust-lang.org/tools/install/))
 
 ### Building
 ```bash
