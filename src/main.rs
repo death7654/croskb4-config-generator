@@ -170,10 +170,7 @@ impl RemapCfgKeyJson {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ConfigEntryJson {
-    index: u32,
-    file_offset: usize,
-    file_offset_hex: String,
-    
+    index: u32,    
     #[serde(skip_serializing_if = "is_no_detect")]
     left_ctrl: String,
     #[serde(skip_serializing_if = "is_no_detect")]
@@ -500,8 +497,6 @@ fn read_config(path: &str, output_json: Option<&str>) -> bool {
         
         let config_entry = ConfigEntryJson {
             index: i,
-            file_offset: offset,
-            file_offset_hex: format!("0x{:04X}", offset),
             left_ctrl: format_key_state(left_ctrl).to_string(),
             left_alt: format_key_state(left_alt).to_string(),
             search: format_key_state(search).to_string(),

@@ -11,8 +11,6 @@
   "configs": [
     {
       "index": 0,
-      "file_offset": 17,
-      "file_offset_hex": "0x0011",
       "left_ctrl": "EnforceNot",
       "original_key": {
         "make_code": 106,
@@ -26,8 +24,6 @@
     },
     {
       "index": 1,
-      "file_offset": 90,
-      "file_offset_hex": "0x005A",
       "left_ctrl": "EnforceNot",
       "original_key": {
         "make_code": 105,
@@ -41,8 +37,6 @@
     },
     {
       "index": 2,
-      "file_offset": 163,
-      "file_offset_hex": "0x00A3",
       "left_ctrl": "EnforceNot",
       "original_key": {
         "make_code": 103,
@@ -56,8 +50,6 @@
     },
     {
       "index": 3,
-      "file_offset": 236,
-      "file_offset_hex": "0x00EC",
       "left_ctrl": "EnforceNot",
       "original_key": {
         "make_code": 17,
@@ -71,8 +63,6 @@
     },
     {
       "index": 4,
-      "file_offset": 309,
-      "file_offset_hex": "0x0135",
       "left_ctrl": "EnforceNot",
       "original_key": {
         "make_code": 18,
@@ -86,8 +76,6 @@
     },
     {
       "index": 5,
-      "file_offset": 382,
-      "file_offset_hex": "0x017E",
       "left_ctrl": "EnforceNot",
       "original_key": {
         "make_code": 19,
@@ -101,8 +89,6 @@
     },
     {
       "index": 6,
-      "file_offset": 455,
-      "file_offset_hex": "0x01C7",
       "left_ctrl": "EnforceNot",
       "original_key": {
         "make_code": 20,
@@ -116,8 +102,6 @@
     },
     {
       "index": 7,
-      "file_offset": 528,
-      "file_offset_hex": "0x0210",
       "left_ctrl": "EnforceNot",
       "original_key": {
         "make_code": 21,
@@ -131,8 +115,6 @@
     },
     {
       "index": 8,
-      "file_offset": 601,
-      "file_offset_hex": "0x0259",
       "left_ctrl": "EnforceNot",
       "original_key": {
         "make_code": 22,
@@ -146,8 +128,6 @@
     },
     {
       "index": 9,
-      "file_offset": 674,
-      "file_offset_hex": "0x02A2",
       "left_ctrl": "EnforceNot",
       "original_key": {
         "make_code": 23,
@@ -161,8 +141,6 @@
     },
     {
       "index": 10,
-      "file_offset": 747,
-      "file_offset_hex": "0x02EB",
       "left_ctrl": "EnforceNot",
       "original_key": {
         "make_code": 24,
@@ -176,8 +154,6 @@
     },
     {
       "index": 11,
-      "file_offset": 820,
-      "file_offset_hex": "0x0334",
       "left_ctrl": "EnforceNot",
       "original_key": {
         "make_code": 30,
@@ -191,8 +167,6 @@
     },
     {
       "index": 12,
-      "file_offset": 893,
-      "file_offset_hex": "0x037D",
       "left_ctrl": "EnforceNot",
       "original_key": {
         "make_code": 26,
@@ -206,8 +180,6 @@
     },
     {
       "index": 13,
-      "file_offset": 966,
-      "file_offset_hex": "0x03C6",
       "left_ctrl": "EnforceNot",
       "original_key": {
         "make_code": 32,
@@ -221,8 +193,6 @@
     },
     {
       "index": 14,
-      "file_offset": 1039,
-      "file_offset_hex": "0x040F",
       "left_ctrl": "EnforceNot",
       "original_key": {
         "make_code": 46,
@@ -236,8 +206,6 @@
     },
     {
       "index": 15,
-      "file_offset": 1112,
-      "file_offset_hex": "0x0458",
       "left_ctrl": "EnforceNot",
       "original_key": {
         "make_code": 48,
@@ -251,8 +219,6 @@
     },
     {
       "index": 16,
-      "file_offset": 1185,
-      "file_offset_hex": "0x04A1",
       "left_ctrl": "EnforceNot",
       "original_key": {
         "make_code": 25,
@@ -266,8 +232,6 @@
     },
     {
       "index": 17,
-      "file_offset": 1258,
-      "file_offset_hex": "0x04EA",
       "left_ctrl": "EnforceNot",
       "original_key": {
         "make_code": 16,
@@ -281,8 +245,6 @@
     },
     {
       "index": 18,
-      "file_offset": 1331,
-      "file_offset_hex": "0x0533",
       "left_ctrl": "EnforceNot",
       "original_key": {
         "make_code": 27,
@@ -296,8 +258,6 @@
     },
     {
       "index": 19,
-      "file_offset": 1404,
-      "file_offset_hex": "0x057C",
       "left_ctrl": "Enforce",
       "left_alt": "Enforce",
       "original_key": {
@@ -317,8 +277,6 @@
     },
     {
       "index": 20,
-      "file_offset": 1477,
-      "file_offset_hex": "0x05C5",
       "left_ctrl": "Enforce",
       "left_alt": "EnforceNot",
       "original_key": {
@@ -348,8 +306,6 @@
     },
     {
       "index": 21,
-      "file_offset": 1550,
-      "file_offset_hex": "0x060E",
       "left_ctrl": "Enforce",
       "left_shift": "EnforceNot",
       "original_key": {
@@ -379,8 +335,6 @@
     },
     {
       "index": 22,
-      "file_offset": 1623,
-      "file_offset_hex": "0x0657",
       "left_ctrl": "Enforce",
       "search": "EnforceNot",
       "left_shift": "Enforce",
@@ -427,8 +381,6 @@
     },
     {
       "index": 23,
-      "file_offset": 1696,
-      "file_offset_hex": "0x06A0",
       "left_ctrl": "Enforce",
       "search": "Enforce",
       "left_shift": "Enforce",
@@ -467,8 +419,6 @@
     },
     {
       "index": 24,
-      "file_offset": 1769,
-      "file_offset_hex": "0x06E9",
       "left_ctrl": "Enforce",
       "search": "EnforceNot",
       "left_shift": "EnforceNot",
@@ -507,8 +457,6 @@
     },
     {
       "index": 25,
-      "file_offset": 1842,
-      "file_offset_hex": "0x0732",
       "left_ctrl": "Enforce",
       "search": "Enforce",
       "left_shift": "EnforceNot",
@@ -539,8 +487,6 @@
     },
     {
       "index": 26,
-      "file_offset": 1915,
-      "file_offset_hex": "0x077B",
       "left_ctrl": "Enforce",
       "search": "EnforceNot",
       "left_shift": "Enforce",
@@ -579,8 +525,6 @@
     },
     {
       "index": 27,
-      "file_offset": 1988,
-      "file_offset_hex": "0x07C4",
       "left_ctrl": "Enforce",
       "search": "Enforce",
       "left_shift": "Enforce",
@@ -611,8 +555,6 @@
     },
     {
       "index": 28,
-      "file_offset": 2061,
-      "file_offset_hex": "0x080D",
       "left_ctrl": "Enforce",
       "search": "EnforceNot",
       "left_shift": "EnforceNot",
@@ -656,8 +598,6 @@
     },
     {
       "index": 29,
-      "file_offset": 2134,
-      "file_offset_hex": "0x0856",
       "left_ctrl": "Enforce",
       "search": "Enforce",
       "left_shift": "EnforceNot",
@@ -693,8 +633,6 @@
     },
     {
       "index": 30,
-      "file_offset": 2207,
-      "file_offset_hex": "0x089F",
       "left_ctrl": "Enforce",
       "search": "EnforceNot",
       "left_shift": "Enforce",
@@ -733,8 +671,6 @@
     },
     {
       "index": 31,
-      "file_offset": 2280,
-      "file_offset_hex": "0x08E8",
       "left_ctrl": "Enforce",
       "search": "Enforce",
       "left_shift": "Enforce",
@@ -765,8 +701,6 @@
     },
     {
       "index": 32,
-      "file_offset": 2353,
-      "file_offset_hex": "0x0931",
       "left_ctrl": "Enforce",
       "left_alt": "Enforce",
       "original_key": {
@@ -789,8 +723,6 @@
     },
     {
       "index": 33,
-      "file_offset": 2426,
-      "file_offset_hex": "0x097A",
       "left_ctrl": "Enforce",
       "left_alt": "Enforce",
       "original_key": {
@@ -813,8 +745,6 @@
     },
     {
       "index": 34,
-      "file_offset": 2499,
-      "file_offset_hex": "0x09C3",
       "left_ctrl": "Enforce",
       "original_key": {
         "make_code": 75,
@@ -846,8 +776,6 @@
     },
     {
       "index": 35,
-      "file_offset": 2572,
-      "file_offset_hex": "0x0A0C",
       "left_ctrl": "Enforce",
       "original_key": {
         "make_code": 77,
@@ -879,8 +807,6 @@
     },
     {
       "index": 36,
-      "file_offset": 2645,
-      "file_offset_hex": "0x0A55",
       "left_ctrl": "Enforce",
       "original_key": {
         "make_code": 72,
@@ -912,8 +838,6 @@
     },
     {
       "index": 37,
-      "file_offset": 2718,
-      "file_offset_hex": "0x0A9E",
       "left_ctrl": "Enforce",
       "original_key": {
         "make_code": 80,
@@ -945,8 +869,6 @@
     },
     {
       "index": 38,
-      "file_offset": 2791,
-      "file_offset_hex": "0x0AE7",
       "search": "EnforceNot",
       "original_key": {
         "make_code": 93,
@@ -972,8 +894,6 @@
     },
     {
       "index": 39,
-      "file_offset": 2864,
-      "file_offset_hex": "0x0B30",
       "search": "Enforce",
       "original_key": {
         "make_code": 93,
