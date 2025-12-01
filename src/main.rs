@@ -436,7 +436,7 @@ fn read_config(path: &str, output_json: Option<&str>) -> bool {
     };
     println!("  Is non-Chrome EC: {} ({})", is_non_chrome_ec, is_non_chrome_ec_str);
 
-    println!("\n=== Configuration Entries ===\n");
+    println!("\nConfiguration Entriesn");
 
     let expected_size = 17 + (remappings as usize * 73);
     if data.len() < expected_size {
@@ -533,7 +533,7 @@ fn read_config(path: &str, output_json: Option<&str>) -> bool {
         println!("  Original key: 0x{:02X} (flags: {})", orig_make_code, format_flags(orig_flags));
         
         if remap_vivaldi {
-            println!("  Remap to: Vivaldi → Function key");
+            println!("  Remap to: Vivaldi -> Function key");
         } else if remap_make_code != 0 || remap_flags != 0 {
             println!("  Remap to: 0x{:02X} (flags: {})", remap_make_code, format_flags(remap_flags));
         }
