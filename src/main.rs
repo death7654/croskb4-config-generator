@@ -1,9 +1,14 @@
 use std::fs::{self, File};
 use std::io::Write;
 use std::mem;
+use std::path::Path;
+use std::io;
 
 use serde::{Serialize, Deserialize};
 use serde_json;
+
+// config file location
+const CONFIG_PATH: &str = "C:\\Windows\\System32\\drivers\\croskbsettings.bin";
 
 // Keycodes and constants
 const K_LCTRL: u16 = 0x1D;
@@ -59,6 +64,7 @@ const FUNCTION_KEYS: [u16; 16] = [
     0x64, 0x65, 0x66, 0x67, // F13-F16
 ];
 
+// enums on c and rust are not the same, hence this structure
 type RemapCfgKeyState = i32;
 const KEY_STATE_NO_DETECT: i32 = 0;
 const KEY_STATE_ENFORCE: i32 = 1;
@@ -69,8 +75,7 @@ const REMAP_AUTO_DETECT: i32 = 0;
 const REMAP_ENABLE: i32 = 1;
 const REMAP_DISABLE: i32 = 2;
 
-// ===== Binary Structures =====
-
+// binary structures
 #[repr(C, packed(1))]
 #[derive(Debug, Copy, Clone)]
 struct RemapCfgKey {
@@ -141,10 +146,10 @@ struct RemapCfgsHeader {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct RemapCfgKeyJson {
     make_code: u16,
-    #[serde(skip_serializing_if = "String::is_empty")]
+    #[serde(skip_serializing_if = "String::is_empty", default)]
     make_code_hex: String,
     flags: u16,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
     flags_decoded: Vec<String>,
 }
 
@@ -171,30 +176,20 @@ impl RemapCfgKeyJson {
 #[derive(Debug, Serialize, Deserialize)]
 struct ConfigEntryJson {
     index: u32,    
-    #[serde(skip_serializing_if = "is_no_detect")]
     left_ctrl: String,
-    #[serde(skip_serializing_if = "is_no_detect")]
     left_alt: String,
-    #[serde(skip_serializing_if = "is_no_detect")]
     search: String,
-    #[serde(skip_serializing_if = "is_no_detect")]
     assistant: String,
-    #[serde(skip_serializing_if = "is_no_detect")]
     left_shift: String,
-    #[serde(skip_serializing_if = "is_no_detect")]
     right_ctrl: String,
-    #[serde(skip_serializing_if = "is_no_detect")]
     right_alt: String,
-    #[serde(skip_serializing_if = "is_no_detect")]
     right_shift: String,
     
     original_key: RemapCfgKeyJson,
     remap_vivaldi_to_fn: bool,
     
-    #[serde(skip_serializing_if = "Option::is_none")]
     remapped_key: Option<RemapCfgKeyJson>,
     
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     additional_keys: Vec<RemapCfgKeyJson>,
 }
 
@@ -216,61 +211,13 @@ struct ConfigFileJson {
     configs: Vec<ConfigEntryJson>,
 }
 
-// helper functions
 
-fn bytes_to_u32(bytes: &[u8]) -> Option<u32> {
-    if bytes.len() < 4 {
-        return None;
-    }
-    Some(u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
-}
-
-fn bytes_to_i32(bytes: &[u8]) -> Option<i32> {
-    if bytes.len() < 4 {
-        return None;
-    }
-    Some(i32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
-}
-
-fn bytes_to_u16(bytes: &[u8]) -> Option<u16> {
-    if bytes.len() < 2 {
-        return None;
-    }
-    Some(u16::from_le_bytes([bytes[0], bytes[1]]))
-}
-
-fn format_key_state(state: i32) -> &'static str {
-    match state {
-        0 => "NoDetect",
-        1 => "Enforce",
-        2 => "EnforceNot",
-        _ => "Unknown",
-    }
-}
-
-fn format_flags(flags: u16) -> String {
-    let mut flag_strs = Vec::new();
-    
-    if flags & 0x0001 != 0 { flag_strs.push("BREAK"); }
-    if flags & 0x0002 != 0 { flag_strs.push("E0"); }
-    if flags & 0x0004 != 0 { flag_strs.push("E1"); }
-    
-    if flag_strs.is_empty() {
-        "NONE".to_string()
-    } else {
-        flag_strs.join("|")
-    }
-}
 
 // config generators
 
-fn generate_config_from_json(json_path: &str, output_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Reading JSON configuration from: {}\n", json_path);
+pub fn generate_config_from_json(json_data: &str) -> Result<(), Box<dyn std::error::Error>> {
     
-    // read JSON file
-    let json_data = fs::read_to_string(json_path)?;
     let config_json: ConfigFileJson = serde_json::from_str(&json_data)?;
-    
     println!("Loaded {} configuration entries from JSON", config_json.configs.len());
     
     // validate
@@ -360,11 +307,11 @@ fn generate_config_from_json(json_path: &str, output_path: &str) -> Result<(), B
     }
     
     // write to file
-    let mut file = File::create(output_path)?;
+    let mut file = File::create("croskbsettingsrs.bin")?;
+    println!("read json");
     file.write_all(&buffer)?;
-    
-    println!("Successfully wrote {} bytes to {}", buffer.len(), output_path);
-    
+
+        
     Ok(())
 }
 
@@ -376,20 +323,20 @@ fn parse_key_state(state_str: &str) -> i32 {
     }
 }
 
-fn read_config(path: &str, output_json: Option<&str>) -> bool {
+pub fn read_config(path: &str) -> String {
     // read file
     let data = match fs::read(path) {
         Ok(d) => d,
         Err(e) => {
             println!("Error reading file: {}", e);
-            return false;
+            return String::new();
         }
     };
 
     // validate minimum file size
     if data.len() < 17 {
         println!("File too small (need at least 17 bytes for header, got {})", data.len());
-        return false;
+        return String::new();
     }
     
     // Read magic (0x0000-0x0003)
@@ -402,7 +349,7 @@ fn read_config(path: &str, output_json: Option<&str>) -> bool {
     if !valid {
         println!("Invalid magic number: expected 0x{:08X}, got 0x{:08X} ('{}')", 
                  CFG_MAGIC, magic_u32, magic_str);
-        return false;
+        return String::new();
     }
 
     println!("Valid CrosKB settings file");
@@ -436,7 +383,7 @@ fn read_config(path: &str, output_json: Option<&str>) -> bool {
     };
     println!("  Is non-Chrome EC: {} ({})", is_non_chrome_ec, is_non_chrome_ec_str);
 
-    println!("\nConfiguration Entriesn");
+    println!("\nConfiguration Entries\n");
 
     let expected_size = 17 + (remappings as usize * 73);
     if data.len() < expected_size {
@@ -554,52 +501,80 @@ fn read_config(path: &str, output_json: Option<&str>) -> bool {
     println!("Successfully read {} configuration entries", configs_to_read);
 
     // Create and write JSON output
-    if let Some(json_path) = output_json {
-        let json_output = ConfigFileJson {
-            magic: magic_str,
-            magic_hex: format!("0x{:08X}", magic_u32),
-            valid,
-            remappings,
-            flip_search_and_assistant_on_pixelbook: flip_search_assistant,
-            has_assistant_key: has_assistant_str.to_string(),
-            is_non_chrome_ec: is_non_chrome_ec_str.to_string(),
-            file_size_bytes: data.len(),
-            expected_size_bytes: expected_size,
-            configs,
-        };
+    let json_output = ConfigFileJson {
+        magic: magic_str,
+        magic_hex: format!("0x{:08X}", magic_u32),
+        valid,
+        remappings,
+        flip_search_and_assistant_on_pixelbook: flip_search_assistant,
+        has_assistant_key: has_assistant_str.to_string(),
+        is_non_chrome_ec: is_non_chrome_ec_str.to_string(),
+        file_size_bytes: data.len(),
+        expected_size_bytes: expected_size,
+        configs,
+    };
 
-        match serde_json::to_string_pretty(&json_output) {
-            Ok(json_string) => {
-                match File::create(json_path) {
-                    Ok(mut file) => {
-                        if let Err(e) = file.write_all(json_string.as_bytes()) {
-                            println!("\nError writing JSON file: {}", e);
-                            return false;
-                        }
-                        println!("\nJSON output written to: {}", json_path);
-                    }
-                    Err(e) => {
-                        println!("\nError creating JSON file: {}", e);
-                        return false;
-                    }
-                }
-            }
-            Err(e) => {
-                println!("\nError serializing to JSON: {}", e);
-                return false;
-            }
+    match serde_json::to_string_pretty(&json_output) {
+        Ok(json_string) => {
+            return json_string;
+        }
+        Err(e) => {
+            println!("\nError serializing to JSON: {}", e);
+            return String::new();
         }
     }
-
-    true
 }
 
+//helper
+fn bytes_to_u32(bytes: &[u8]) -> Option<u32> {
+    if bytes.len() < 4 {
+        return None;
+    }
+    Some(u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
+}
+
+fn bytes_to_i32(bytes: &[u8]) -> Option<i32> {
+    if bytes.len() < 4 {
+        return None;
+    }
+    Some(i32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
+}
+
+fn bytes_to_u16(bytes: &[u8]) -> Option<u16> {
+    if bytes.len() < 2 {
+        return None;
+    }
+    Some(u16::from_le_bytes([bytes[0], bytes[1]]))
+}
+
+fn format_key_state(state: i32) -> &'static str {
+    match state {
+        0 => "NoDetect",
+        1 => "Enforce",
+        2 => "EnforceNot",
+        _ => "Unknown",
+    }
+}
+
+fn format_flags(flags: u16) -> String {
+    let mut flag_strs = Vec::new();
+    
+    if flags & 0x0001 != 0 { flag_strs.push("BREAK"); }
+    if flags & 0x0002 != 0 { flag_strs.push("E0"); }
+    if flags & 0x0004 != 0 { flag_strs.push("E1"); }
+    
+    if flag_strs.is_empty() {
+        "NONE".to_string()
+    } else {
+        flag_strs.join("|")
+    }
+}
 
 fn main()
 {
     let path = "croskbsettings.bin";
-    read_config(path, Some("output.json"));
-    generate_config_from_json("output.json", "croskbsettingsrs.bin");
+    let output = read_config(path);
+    let _ = generate_config_from_json(&output).unwrap();
     
 }
 
